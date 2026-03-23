@@ -904,7 +904,6 @@ function GameScreen({
         borderRadius: 28, padding: "24px 20px",
         border: `2px solid ${c.bg}55`,
         boxShadow: `0 16px 48px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.05)`,
-        animation: "slideUp 0.4s both",
         animation: feedback?.correct === false ? "shake 0.4s both" : "slideUp 0.4s both",
       }}>
         {/* Timer */}
