@@ -1,17 +1,14 @@
 {
-  "name": "missionschool",
+  "name": "mission-school",
   "version": "1.0.0",
+  "description": "Educational game platform",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "concurrently \"cd Frontend && npm run dev\" \"cd Backend && npm run dev\"",
+    "start": "concurrently \"cd Frontend && npm run start\" \"cd Backend && npm run start\"",
+    "install-all": "cd Frontend && npm install && cd ../Backend && npm install"
   },
   "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.1",
-    "vite": "^5.4.1"
+    "concurrently": "^8.2.2",
+    "nodemon": "^3.1.9"
   }
 }

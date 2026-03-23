@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import * as api from "./api";
 
 // ── Inline styles (no Tailwind needed beyond defaults) ──────────────────────
 const COLORS = {
@@ -243,7 +244,7 @@ function StarBurst({ count }) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────
 export default function App() {
-  const [screen, setScreen] = useState("home"); // home | upload | game | summary | hall
+  const [screen, setScreen] = useState(localStorage.getItem('token') ? 'home' : 'login'); // home | upload | game | summary | hall | login
   const [uploadedText, setUploadedText] = useState("");
   const [uploadSubject, setUploadSubject] = useState("persian");
   const [loading, setLoading] = useState(false);
@@ -270,11 +271,76 @@ export default function App() {
   const fileRef = useRef();
   const timerRef = useRef();
 
+  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [user, setUser] = useState(null);
+  const [authMode, setAuthMode] = useState('login'); // login | register
+
+  // Fetch user profile on mount or token change
+  useEffect(() => {
+    if (token) {
+      api.getProfile(token).then(data => {
+        if (data.email) {
+          setUser(data);
+          // Sync local state with server state
+          const serverStats = {
+            totalStars: data.scores.reduce((acc, curr) => acc + (curr.stars || 0), 0),
+            completedLessons: new Set(data.scores.map(s => s.subject)).size,
+            // (Assuming more logic here for other stats)
+            fastAnswers: data.fastAnswers || 0,
+            perfectStages: data.perfectStages || 0,
+          };
+          setGameStats(prev => ({ ...prev, ...serverStats }));
+          setEarnedBadges(data.badges || []);
+          setCompletedSubjects([...new Set(data.scores.map(s => s.subject))]);
+        } else {
+          setToken(null);
+          localStorage.removeItem('token');
+        }
+      });
+    }
+  }, [token]);
+
   // Badge check
   useEffect(() => {
     const newBadges = BADGES.filter(b => b.condition(gameStats) && !earnedBadges.includes(b.id));
-    if (newBadges.length) setEarnedBadges(prev => [...prev, ...newBadges.map(b => b.id)]);
-  }, [gameStats]);
+    if (newBadges.length) {
+      const addedBadges = newBadges.map(b => b.id);
+      setEarnedBadges(prev => [...prev, ...addedBadges]);
+
+      // Save new badges to backend
+      if (token) {
+        addedBadges.forEach(badge => {
+          api.updateProgress(token, { badge });
+        });
+      }
+    }
+  }, [gameStats, token, earnedBadges]);
+
+  const handleLogin = async (email, password) => {
+    const res = await api.login(email, password);
+    if (res.token) {
+      setToken(res.token);
+      localStorage.setItem('token', res.token);
+      setScreen('home');
+    } else {
+      throw new Error(res.message || 'خطا در ورود');
+    }
+  };
+
+  const handleRegister = async (email, password) => {
+    const res = await api.register(email, password);
+    if (res.message !== 'User registered successfully') {
+      throw new Error(res.error || 'خطا در ثبت‌نام');
+    }
+    setAuthMode('login');
+  };
+
+  const logout = () => {
+    setToken(null);
+    setUser(null);
+    localStorage.removeItem('token');
+    setScreen('login');
+  };
 
   // Timer
   useEffect(() => {
@@ -349,6 +415,16 @@ export default function App() {
         completedLessons: g.completedLessons + 1,
       }));
       setCompletedSubjects(s => [...new Set([...s, activeSubject])]);
+
+      // Save stats to backend
+      if (token) {
+        api.updateProgress(token, {
+          subject: activeSubject,
+          score: score,
+          stars: stars + (feedback?.stars || 0)
+        });
+      }
+
       setScreen("summary");
       return;
     }
@@ -419,6 +495,17 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
 
   // ── SCREENS ────────────────────────────────────────────────────────────
 
+  if (!token) {
+    return (
+      <AuthScreen
+        mode={authMode}
+        setMode={setAuthMode}
+        onLogin={handleLogin}
+        onRegister={handleRegister}
+      />
+    );
+  }
+
   if (screen === "home") return <HomeScreen
     onStart={(id) => startMissions(id)}
     onUpload={() => setScreen("upload")}
@@ -426,6 +513,8 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
     gameStats={gameStats}
     earnedBadges={earnedBadges}
     onHall={() => setScreen("hall")}
+    user={user}
+    onLogout={logout}
   />;
 
   if (screen === "upload") return <UploadScreen
@@ -472,13 +561,17 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
 }
 
 // ─── HOME SCREEN ──────────────────────────────────────────────────────────
-function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBadges, onHall }) {
+function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBadges, onHall, user, onLogout }) {
   return (
     <div style={{
       minHeight: "100vh", background: "linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)",
       fontFamily: "'Vazirmatn', 'Segoe UI', sans-serif", padding: "20px",
       display: "flex", flexDirection: "column", alignItems: "center",
     }}>
+      <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', color: '#fff', fontSize: '14px', marginBottom: '20px' }}>
+        <span>{user?.email} خوش آمدید</span>
+        <button onClick={onLogout} style={{ background: 'transparent', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer' }}>خروج</button>
+      </div>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap');
         @keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
@@ -1156,6 +1249,225 @@ function BadgeHall({ earnedBadges, gameStats, completedSubjects, onBack }) {
             );
           })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// --- AUTH SCREEN ---
+function AuthScreen({ mode, setMode, onLogin, onRegister }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setIsLoading(true);
+    try {
+      if (mode === 'login') {
+        await onLogin(email, password);
+      } else {
+        await onRegister(email, password);
+        setSuccess('ثبت‌نام موفق! حالا می‌توانید وارد شوید.');
+        setEmail('');
+        setPassword('');
+      }
+    } catch (err) {
+      setError(err.message || 'خطایی رخ داد. دوباره تلاش کنید.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "linear-gradient(135deg, #121212 0%, #1a1a2e 50%, #16213e 100%)",
+      fontFamily: "'Vazirmatn', sans-serif",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+      position: "relative"
+    }}>
+      {/* Background Decorative Elements */}
+      <div style={{
+        position: 'absolute', width: '300px', height: '300px',
+        background: 'radial-gradient(circle, rgba(255, 107, 107, 0.2) 0%, transparent 70%)',
+        top: '-150px', right: '-150px', borderRadius: '50%', filter: 'blur(50px)'
+      }}></div>
+      <div style={{
+        position: 'absolute', width: '400px', height: '400px',
+        background: 'radial-gradient(circle, rgba(78, 205, 196, 0.15) 0%, transparent 70%)',
+        bottom: '-200px', left: '-200px', borderRadius: '50%', filter: 'blur(60px)'
+      }}></div>
+
+      <div style={{
+        backgroundColor: "rgba(255, 255, 255, 0.03)",
+        backdropFilter: "blur(20px)",
+        WebkitBackdropFilter: "blur(20px)",
+        border: "1px solid rgba(255, 255, 255, 0.1)",
+        padding: "50px 40px",
+        borderRadius: "32px",
+        width: "90%",
+        maxWidth: "420px",
+        textAlign: "center",
+        boxShadow: "0 20px 80px rgba(0,0,0,0.5)",
+        animation: "fadeSlideUp 0.8s ease-out",
+        zIndex: 1
+      }}>
+        <style>{`
+          @keyframes fadeSlideUp {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes pulseScale {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+          }
+          .input-focus:focus {
+            border-color: #4ECDC4 !important;
+            box-shadow: 0 0 10px rgba(78, 205, 196, 0.3);
+          }
+        `}</style>
+
+        <div style={{ fontSize: "60px", marginBottom: "20px", animation: "pulseScale 2s infinite ease-in-out" }}>🚀</div>
+
+        <h2 style={{
+          color: "#fff",
+          marginBottom: "10px",
+          fontSize: "32px",
+          fontWeight: "900",
+          letterSpacing: "-0.5px"
+        }}>
+          {mode === 'login' ? 'خوش مامور 007' : 'سفر خود را آغاز کن'}
+        </h2>
+
+        <p style={{ color: "rgba(255, 255, 255, 0.6)", marginBottom: "35px", fontSize: "16px" }}>
+          {mode === 'login' ? 'برای ادامه ماجراجویی وارد شو' : 'به دنیای یادگیری مأموریت‌ها خوش آمدی!'}
+        </p>
+
+        {success && (
+          <div style={{
+            backgroundColor: "rgba(78, 205, 196, 0.15)",
+            color: "#4ECDC4",
+            padding: "14px",
+            borderRadius: "12px",
+            marginBottom: "20px",
+            fontSize: "14px",
+            border: "1px solid rgba(78, 205, 196, 0.3)",
+            display: "flex", alignItems: "center", gap: "8px", justifyContent: "center"
+          }}>
+            ✅ {success}
+          </div>
+        )}
+
+        {error && (
+          <div style={{
+            backgroundColor: "rgba(255, 107, 107, 0.15)",
+            color: "#FF6B6B",
+            padding: "14px",
+            borderRadius: "12px",
+            marginBottom: "20px",
+            fontSize: "14px",
+            border: "1px solid rgba(255, 107, 107, 0.3)",
+            display: "flex", alignItems: "center", gap: "8px", justifyContent: "center"
+          }}>
+            ⚠️ {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+          <div style={{ textAlign: 'right' }}>
+            <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: '5px' }}>ایمیل</label>
+            <input
+              type="email"
+              placeholder="example@mail.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="input-focus"
+              style={{
+                width: "100%",
+                padding: "16px",
+                borderRadius: "16px",
+                border: "1.5px solid rgba(255, 255, 255, 0.1)",
+                background: "rgba(0, 0, 0, 0.2)",
+                color: "#fff",
+                fontSize: "15px",
+                transition: "all 0.3s ease",
+                boxSizing: "border-box",
+                outline: 'none'
+              }}
+              required
+            />
+          </div>
+
+          <div style={{ textAlign: 'right' }}>
+            <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: '5px' }}>رمز عبور</label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="input-focus"
+              style={{
+                width: "100%",
+                padding: "16px",
+                borderRadius: "16px",
+                border: "1.5px solid rgba(255, 255, 255, 0.1)",
+                background: "rgba(0, 0, 0, 0.2)",
+                color: "#fff",
+                fontSize: "15px",
+                transition: "all 0.3s ease",
+                boxSizing: "border-box",
+                outline: 'none'
+              }}
+              required
+            />
+          </div>
+
+          <button type="submit" disabled={isLoading} style={{
+            background: "linear-gradient(90deg, #FF6B6B 0%, #4ECDC4 100%)",
+            border: "none",
+            padding: "18px",
+            borderRadius: "16px",
+            color: "#fff",
+            fontWeight: "900",
+            cursor: "pointer",
+            fontSize: "18px",
+            marginTop: "10px",
+            boxShadow: "0 10px 20px rgba(0,0,0,0.2)",
+            transition: "all 0.3s ease",
+          }}>
+            {isLoading
+              ? (mode === 'login' ? '⏳ در حال ورود...' : '⏳ در حال ثبت‌نام...')
+              : (mode === 'login' ? '🚀 بزن بریم!' : '🎉 ثبت نام و شروع')}
+          </button>
+        </form>
+
+        <p style={{ color: "rgba(255,255,255,0.5)", marginTop: "30px", fontSize: "15px" }}>
+          {mode === 'login' ? 'هنوز عضو نشدی؟ ' : 'قبلاً ثبت‌نام کردی؟ '}
+          <span
+            onClick={() => {
+              setMode(mode === 'login' ? 'register' : 'login');
+              setError('');
+            }}
+            style={{
+              color: "#4ECDC4",
+              cursor: "pointer",
+              fontWeight: "bold",
+              textDecoration: "underline",
+              paddingLeft: "5px"
+            }}
+          >
+            {mode === 'login' ? 'عضو شو' : 'وارد شو'}
+          </span>
+        </p>
       </div>
     </div>
   );
