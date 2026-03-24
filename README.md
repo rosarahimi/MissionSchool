@@ -24,3 +24,5 @@
 
 ## دیتابیس:
 اطلاعات دیتابیس در فایل `Backend/.env` ذخیره شده است.
+
+git add . && git commit -m "Fix" && git push origin main
