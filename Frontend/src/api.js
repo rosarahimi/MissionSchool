@@ -1,13 +1,11 @@
-const API_URL = 'https://api.nebul.ir/api';
+const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/$/, '') + '/api';
 
 export const login = async (email, password) => {
-  console.log('Attempting login to:', `${API_URL}/auth/login`);
   const res = await fetch(`${API_URL}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
-  console.log('Response status:', res.status);
   return res.json();
 };
 
