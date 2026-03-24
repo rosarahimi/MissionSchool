@@ -33,21 +33,25 @@ router.post('/register', async (req, res) => {
 // ── Login ────────────────────────────────────────────────────────────────────
 router.post('/login', async (req, res) => {
   try {
+    console.log('Login request received:', req.body);
     const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({ message: 'ایمیل و رمز عبور الزامی هستند.' });
     }
 
+    console.log('Looking for user:', email);
     const user = await User.findOne({ email });
     if (!user || !(await user.comparePassword(password))) {
       return res.status(401).json({ message: 'ایمیل یا رمز عبور اشتباه است.' });
     }
 
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '7d' });
+    console.log('Login successful for:', email);
     res.json({ token, email: user.email });
   } catch (error) {
-    res.status(500).json({ message: 'خطای سرور. دوباره تلاش کنید.' });
+    console.error('Login error:', error);
+    res.status(500).json({ message: 'خطای سرور: ' + error.message });
   }
 });
 
