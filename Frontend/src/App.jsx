@@ -7,6 +7,8 @@ const COLORS = {
   arabic: { bg: "#4ECDC4", light: "#E0F7F5", dark: "#1A8E87", text: "#fff" },
   english: { bg: "#45B7D1", light: "#E0F4FA", dark: "#1A7A9A", text: "#fff" },
   science: { bg: "#96CEB4", light: "#E0F5EA", dark: "#3A7A5A", text: "#fff" },
+  math: { bg: "#9B59B6", light: "#F4ECF7", dark: "#6C3483", text: "#fff" },
+  computer: { bg: "#34495E", light: "#EAECEE", dark: "#2C3E50", text: "#fff" },
 };
 
 const SUBJECTS = [
@@ -14,6 +16,8 @@ const SUBJECTS = [
   { id: "arabic", label: "عربی", emoji: "🌙", color: COLORS.arabic, dir: "rtl" },
   { id: "english", label: "English", emoji: "🌟", color: COLORS.english, dir: "ltr" },
   { id: "science", label: "علوم", emoji: "🔬", color: COLORS.science, dir: "rtl" },
+  { id: "math", label: "ریاضی", emoji: "📐", color: COLORS.math, dir: "rtl" },
+  { id: "computer", label: "کامپیوتر", emoji: "💻", color: COLORS.computer, dir: "rtl" },
 ];
 
 const BADGES = [
@@ -22,8 +26,58 @@ const BADGES = [
   { id: "speed_demon", emoji: "⚡", label: "سریع‌الفهم", condition: (s) => s.fastAnswers >= 3 },
   { id: "perfect", emoji: "💎", label: "بی‌نقص", condition: (s) => s.perfectStages >= 1 },
   { id: "lesson_done", emoji: "🎓", label: "درس کامل", condition: (s) => s.completedLessons >= 1 },
-  { id: "four_lessons", emoji: "🏆", label: "قهرمان روز", condition: (s) => s.completedLessons >= 4 },
+  { id: "four_lessons", emoji: "🏆", label: "قهرمان روز", condition: (s) => s.completedLessons >= 6 },
 ];
+
+// ─── Live Clock Component ────────────────────────────────────────────────
+function LiveClock() {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const shamsiDate = new Intl.DateTimeFormat('fa-IR', {
+    calendar: 'persian',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }).format(time);
+
+  const miladiDate = new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric'
+  }).format(time);
+
+  const weekday = new Intl.DateTimeFormat('fa-IR', { weekday: 'long' }).format(time);
+  const timeStr = time.toLocaleTimeString('fa-IR', { 
+    hour: '2-digit', 
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false 
+  });
+
+  return (
+    <div style={{
+      position: 'absolute', top: '24px', left: '24px', textAlign: 'left',
+      color: 'rgba(255,255,255,0.7)', fontFamily: "'Vazirmatn', sans-serif",
+      zIndex: 10, pointerEvents: 'none', animation: 'fadeSlide 0.8s both'
+    }}>
+      <div style={{ fontSize: '26px', fontWeight: '900', color: '#fff', marginBottom: '6px', letterSpacing: '1px' }}>
+        {timeStr}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderLeft: '2px solid rgba(78,205,196,0.3)', paddingLeft: '10px' }}>
+        <div style={{ fontSize: '13px', fontWeight: '600', color: 'rgba(255,255,255,0.9)' }}>{shamsiDate}</div>
+        <div style={{ fontSize: '11px', opacity: 0.6, fontWeight: '500' }}>{miladiDate}</div>
+        <div style={{ fontSize: '12px', fontWeight: '700', color: '#4ECDC4', marginTop: '2px' }}>
+          {weekday}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─── Demo missions per subject ────────────────────────────────────────────
 function buildMissions(subjectId) {
@@ -31,191 +85,295 @@ function buildMissions(subjectId) {
     persian: [
       {
         type: "mcq", stage: 1,
-        q: "کدام گزینه جمع «کتاب» است؟",
-        options: ["کتابها", "کتابان", "کتابین", "کتابون"],
-        answer: 0, exp: "جمع «کتاب» در فارسی با پسوند «ها» ساخته می‌شود: کتاب‌ها",
+        q: "کلمه‌ی هم‌معنی «سعی» کدام است؟",
+        options: ["تلاش", "خواب", "دویدن", "غذا"],
+        answer: 0, exp: "سعی در زبان فارسی به معنی تلاش و کوشش است.",
       },
       {
         type: "fill", stage: 1,
-        q: "جمله را کامل کن: «من به ___ می‌روم.»",
-        blank: "مدرسه", hint: "محل تحصیل", exp: "«مدرسه» محل یادگیری است.",
+        q: "جمله را کامل کن: «بچه‌ها در حیاط مدرسه ___ بازی می‌کنند.»",
+        blank: "فوتبال", hint: "یک ورزش با توپ", exp: "فوتبال یکی از ورزش‌های پرطرفدار در زنگ ورزش است.",
       },
       {
         type: "mcq", stage: 1,
-        q: "نقطه‌گذاری درست کدام است؟",
-        options: ["سلام، حال شما چطور است؟", "سلام حال شما چطور است", "سلام! حال شما چطور است.", "سلام؟ حال شما چطور است!"],
-        answer: 0, exp: "بعد از کلمه‌ی ندا (سلام) ویرگول می‌گذاریم.",
+        q: "در کلمه‌ی «خوشحال»، بخش «خوش» چه تاثیری دارد؟",
+        options: ["کلمه را منفی می‌کند", "معنای زیبایی و خوبی می‌دهد", "کلمه را جمع می‌بندد", "هیچ تاثیری ندارد"],
+        answer: 1, exp: "پیشوند «خوش» در ابتدای کلمه، معنای خوبی و مثبت به کلمه می‌دهد.",
       },
       {
         type: "order", stage: 2,
-        q: "کلمات را مرتب کن تا جمله درست شود:",
-        words: ["می‌خوانم", "من", "را", "کتاب"],
-        answer: "من کتاب را می‌خوانم",
-        exp: "ترتیب جمله در فارسی: فاعل + مفعول + فعل",
+        q: "کلمات را مرتب کن:",
+        words: ["می‌خوانیم", "ما", "کتاب", "داستان"],
+        answer: "ما کتاب داستان می‌خوانیم",
+        exp: "ترتیب اجزای جمله در فارسی: فاعل (ما) + مفعول (کتاب داستان) + فعل (می‌خوانیم).",
       },
       {
         type: "mcq", stage: 2,
-        q: "معنای «مهربان» چیست؟",
-        options: ["عصبانی", "دوستانه و خوش‌قلب", "ترسو", "تنبل"],
-        answer: 1, exp: "مهربان یعنی کسی که قلب خوبی دارد و به دیگران محبت می‌کند.",
+        q: "متضاد (مخالف) کلمه‌ی «تاریک» چیست؟",
+        options: ["روشن", "سیاه", "شب", "سرد"],
+        answer: 0, exp: "روشن نقطه‌ی مقابل و مخالف کلمه‌ی تاریک است.",
       },
       {
         type: "fill", stage: 2,
-        q: "«___ را در آسمان می‌بینیم.»",
-        blank: "ستاره", hint: "شب‌ها در آسمان می‌درخشد", exp: "ستاره‌ها اجرام نورانی آسمان هستند.",
+        q: "پایتخت کشور عزیز ما ایران، شهر ___ است.",
+        blank: "تهران", hint: "بزرگترین شهر ایران", exp: "تهران پایتخت و پرجمعیت‌ترین شهر ایران است.",
       },
       {
         type: "mcq", stage: 3,
-        q: "کدام کلمه هم‌معنای «خوشحال» است؟",
-        options: ["غمگین", "شاد", "خسته", "عصبانی"],
-        answer: 1, exp: "شاد و خوشحال هر دو به یک معنا هستند.",
+        q: "کدام کلمه یک کلمه «مرکب» است؟ (از دو بخش معنی‌دار ساخته شده)",
+        options: ["سیاه", "گلدان", "کتابخانه", "درخت"],
+        answer: 2, exp: "کتابخانه از ترکیب دو کلمه معنی‌دار (کتاب + خانه) ساخته شده است.",
       },
       {
-        type: "fill", stage: 3,
-        q: "«پدرم هر روز ___ می‌کند.»",
-        blank: "کار", hint: "شغل و فعالیت", exp: "کار کردن یعنی تلاش برای کسب درآمد.",
+        type: "order", stage: 3,
+        q: "کلمات را مرتب کن:",
+        words: ["است", "زیبا", "ایران", "بسیار", "کشور"],
+        answer: "کشور ایران بسیار زیبا است",
+        exp: "در ساختن جمله‌های فارسی به طور معمول فعل در آخرِ جمله قرار می‌گیرد.",
       },
     ],
     arabic: [
       {
         type: "mcq", stage: 1,
-        q: "ما معنى كلمة «كتاب»؟",
-        options: ["قلم", "كتاب", "مدرسة", "معلم"],
-        answer: 1, exp: "كلمة «كتاب» تعني Book بالإنجليزية وکتاب بالفارسية.",
+        q: "كيف نقول «این یک کتاب است» بالعربية؟",
+        options: ["هذا كتاب", "هذه مدرسة", "هذا قلم", "هو معلم"],
+        answer: 0, exp: "لإلإشارة إلى المذكر نستخدم اسم الإشارة «هذا».",
       },
       {
         type: "fill", stage: 1,
-        q: "أكمل: «ذهبتُ إلى ___»",
-        blank: "المدرسة", hint: "مكان التعلّم", exp: "المدرسة هي المكان الذي نتعلم فيه.",
+        q: "أكمل: «أنا أذهب إلى ___» (من به مدرسه می‌روم)",
+        blank: "المدرسة", hint: "مكان الدراسة", exp: "المدرسة تعني School وتستخدم لطلب العلم.",
       },
       {
         type: "mcq", stage: 1,
-        q: "ما مفرد «طلاب»؟",
-        options: ["طالبة", "طالبان", "طالب", "مطلوب"],
-        answer: 2, exp: "مفرد طلاب هو طالب.",
+        q: "ما معنى كلمة «أسرة»؟",
+        options: ["دوستان", "خانواده", "مدرسه", "بازار"],
+        answer: 1, exp: "أسرة به معنی خانواده (Family) است.",
+      },
+      {
+        type: "order", stage: 2,
+        q: "رتب الكلمات (ترتیب بده):",
+        words: ["الولد", "التفاحة", "يأكل"],
+        answer: "يأكل الولد التفاحة",
+        exp: "ترتيب الجملة الفعلية: فعل (يأكل) + فاعل (الولد) + مفعول به (التفاحة).",
       },
       {
         type: "mcq", stage: 2,
-        q: "ما ضمير المتكلم؟",
-        options: ["هو", "أنتَ", "أنا", "هي"],
-        answer: 2, exp: "«أنا» هو ضمير المتكلم للمفرد.",
+        q: "ما هو جمع كلمة «ولد»؟",
+        options: ["ولدان", "أولاد", "مولود", "ولادة"],
+        answer: 1, exp: "جمع التكسير لكلمة ولد هو أولاد (پسرها).",
       },
       {
         type: "fill", stage: 2,
-        q: "«___ معلمٌ جيد.»",
-        blank: "هو", hint: "ضمير غائب مذكر", exp: "هو ضمير الغائب المذكر المفرد.",
-      },
-      {
-        type: "mcq", stage: 2,
-        q: "ما معنى «جميل»؟",
-        options: ["قبيح", "حزين", "جميل/بالفارسية زیبا", "غاضب"],
-        answer: 2, exp: "جميل تعني زیبا بالفارسية وBeautiful بالإنجليزية.",
+        q: "ما لون السماء؟ لونها ___. (آبی)",
+        blank: "أزرق", hint: "رنگ دریا", exp: "أزرق به معنی رنگ آبی است.",
       },
       {
         type: "mcq", stage: 3,
-        q: "كيف نقول «شكراً» بالعربية؟",
-        options: ["مرحبا", "شكراً", "وداعاً", "أهلاً"],
-        answer: 1, exp: "شكراً هي كلمة الشكر الأساسية في اللغة العربية.",
+        q: "أي كلمة هي فعل؟ (کدام کلمه فعل است؟)",
+        options: ["مدرسة", "ألعب", "جميل", "كبير"],
+        answer: 1, exp: "«ألعب» (بازی می‌کنم) یک فعل است که انجام عملی را نشان می‌دهد.",
       },
       {
-        type: "fill", stage: 3,
-        q: "«___ صديقي.»",
-        blank: "أنتَ", hint: "ضمير المخاطب", exp: "أنتَ ضمير المخاطب المذكر المفرد.",
+        type: "order", stage: 3,
+        q: "رتب الكلمات:",
+        words: ["في", "أعيش", "الإمارات", "دولة"],
+        answer: "أعيش في دولة الإمارات",
+        exp: "دولة الإمارات العربية المتحدة (کشور امارات متحده عربی).",
       },
     ],
     english: [
       {
         type: "mcq", stage: 1,
-        q: "What is the plural of 'child'?",
-        options: ["childs", "childes", "children", "childrens"],
-        answer: 2, exp: "'Child' has an irregular plural: children (not childs!).",
+        q: "Which sentence is correct for yesterday?",
+        options: ["I is happy.", "I was happy.", "I am happy.", "I be happy."],
+        answer: 1, exp: "We use 'was' as the past tense of 'am' for he/she/it/I.",
       },
       {
         type: "fill", stage: 1,
-        q: "Complete: 'I ___ to school every day.'",
-        blank: "go", hint: "present simple of 'go'", exp: "We use 'go' with I/you/we/they.",
+        q: "An elephant is ___ than a mouse. (bigger)",
+        blank: "bigger", hint: "large size with -er", exp: "When comparing two animals, we add '-er' to the adjective.",
       },
       {
         type: "mcq", stage: 1,
-        q: "Which sentence is correct?",
-        options: ["She go to school.", "She goes to school.", "She going to school.", "She goed to school."],
-        answer: 1, exp: "With he/she/it, we add -es or -s to the verb.",
+        q: "What does an 'Engineer' do?",
+        options: ["Bakes bread", "Builds machines and houses", "Sells clothes", "Paints walls"],
+        answer: 1, exp: "An engineer designs and builds things like bridges, buildings, and machines.",
       },
       {
         type: "order", stage: 2,
-        q: "Arrange the words to make a sentence:",
-        words: ["likes", "She", "apples", "red"],
-        answer: "She likes red apples",
-        exp: "English word order: Subject + Verb + Object + Adjective (before noun).",
+        q: "Make a question:",
+        words: ["you", "Did", "to", "go", "school"],
+        answer: "Did you go to school",
+        exp: "Questions in the past simple start with the helper verb 'Did'.",
       },
       {
         type: "mcq", stage: 2,
-        q: "What does 'enormous' mean?",
-        options: ["tiny", "very big", "colorful", "quiet"],
-        answer: 1, exp: "'Enormous' means extremely large or huge.",
+        q: "Complete: 'It is raining outside, take your ___.'",
+        options: ["sunglasses", "umbrella", "shorts", "kite"],
+        answer: 1, exp: "We use an umbrella to protect ourselves from rain and stay dry.",
       },
       {
         type: "fill", stage: 2,
-        q: "'The cat sat ___ the mat.'",
-        blank: "on", hint: "preposition of place", exp: "'On' shows something is on top of a surface.",
+        q: "We buy fresh food and vegetables at the ___.",
+        blank: "supermarket", hint: "a large store", exp: "A supermarket is a big shop where we buy our daily groceries.",
       },
       {
         type: "mcq", stage: 3,
-        q: "Which is the past tense of 'run'?",
-        options: ["runned", "ran", "runs", "running"],
-        answer: 1, exp: "'Run' is an irregular verb — past tense is 'ran'.",
+        q: "Which word goes with 'always'? (Present Simple)",
+        options: ["He always walking.", "He always walked.", "He always walks.", "He always walk."],
+        answer: 2, exp: "For routines with 'he/she/it', we add an '-s' to the main verb.",
       },
       {
-        type: "fill", stage: 3,
-        q: "'___ you speak English?' 'Yes, I can!'",
-        blank: "Can", hint: "modal verb for ability", exp: "'Can' is used to ask about ability.",
+        type: "order", stage: 3,
+        q: "Order the words:",
+        words: ["usually", "I", "at 7 o'clock", "wake up"],
+        answer: "I usually wake up at 7 o'clock",
+        exp: "Adverbs of frequency (usually) come before the main verb.",
       },
     ],
     science: [
       {
         type: "mcq", stage: 1,
-        q: "کدام یک از منابع انرژی تجدیدپذیر است؟",
-        options: ["نفت", "زغال‌سنگ", "خورشید", "گاز طبیعی"],
-        answer: 2, exp: "انرژی خورشیدی تجدیدپذیر است چون خورشید همیشه می‌درخشد.",
+        q: "کدام قسمتِ گیاه آب را از خاک می‌گیرد؟",
+        options: ["برگ", "ساقه", "ریشه", "گل"],
+        answer: 2, exp: "ریشه در خاک قرار دارد و آب و مواد مغذی را برای رشد گیاه جذب می‌کند.",
       },
       {
         type: "fill", stage: 1,
-        q: "آب در دمای ۱۰۰ درجه ___ می‌شود.",
-        blank: "بخار", hint: "حالت گازی آب", exp: "در ۱۰۰ درجه سانتیگراد آب به بخار تبدیل می‌شود.",
+        q: "یخ یک ماده در حالت ___ است.",
+        blank: "جامد", hint: "سخت و محکم", exp: "یخ حالت جامد آب است که شکل مشخصی دارد.",
       },
       {
         type: "mcq", stage: 1,
-        q: "کدام اندام خون را پمپاژ می‌کند؟",
-        options: ["ریه", "کبد", "قلب", "معده"],
-        answer: 2, exp: "قلب خون را در سراسر بدن پمپاژ می‌کند.",
+        q: "یک آهنربا کدام ماده را به خود جذب می‌کند؟",
+        options: ["پلاستیک", "چوب", "آهن", "شیشه"],
+        answer: 2, exp: "آهنرباها فقط فلزات خاصی مانند آهن و فولاد را به خود جذب می‌کنند.",
       },
       {
         type: "mcq", stage: 2,
-        q: "گیاهان از طریق کدام فرایند غذا می‌سازند؟",
-        options: ["تنفس", "فتوسنتز", "هضم", "تبخیر"],
-        answer: 1, exp: "فتوسنتز فرایندی است که گیاهان از نور خورشید برای ساخت غذا استفاده می‌کنند.",
+        q: "چرخش زمین به دور محور خودش باعث چه چیزی می‌شود؟",
+        options: ["پیدایش فصل‌ها", "شب و روز", "ماه‌گرفتگی", "زلزله"],
+        answer: 1, exp: "چرخش زمین به دور محور خودش که ۲۴ ساعت طول می‌کشد، باعث ایجاد شب و روز می‌شود.",
       },
       {
         type: "fill", stage: 2,
-        q: "زمین به دور ___ می‌گردد.",
-        blank: "خورشید", hint: "ستاره مرکز منظومه شمسی", exp: "زمین در مدار خود به دور خورشید می‌چرخد.",
+        q: "نیرویی که باعث پایین افتادن اجسام می‌شود، نیروی ___ نام دارد.",
+        blank: "جاذبه", hint: "نیروی گرانش زمین", exp: "جاذبه یا گرانش، نیرویی است که اجسام را به سمت مرکز زمین می‌کشد.",
       },
       {
         type: "mcq", stage: 2,
-        q: "کدام یک سریع‌تر از صوت است؟",
-        options: ["قطار", "هواپیمای جت", "نور", "موشک"],
-        answer: 2, exp: "نور با سرعت ۳۰۰,۰۰۰ کیلومتر در ثانیه سریع‌ترین چیز در جهان است.",
+        q: "کدام یک از حیوانات زیر در زیستگاه «بیابان» زندگی راحت‌تری دارد؟",
+        options: ["خرس قطبی", "شتر", "دلفین", "میمون"],
+        answer: 1, exp: "شتر با داشتن کوهان و مژه‌های بلند می‌تواند گرما و کم‌آبی بیابان‌های امارات را تحمل کند.",
       },
       {
-        type: "mcq", stage: 3,
-        q: "کدام ماده جامد، مایع و گاز دارد؟",
-        options: ["نمک", "آهن", "آب", "شن"],
-        answer: 2, exp: "آب می‌تواند جامد (یخ)، مایع (آب) یا گاز (بخار) باشد.",
+        type: "order", stage: 3,
+        q: "مراحل رشد گیاه را مرتب کن:",
+        words: ["دانه", "جوانه", "گیاه کوچک", "گل"],
+        answer: "دانه جوانه گیاه کوچک گل",
+        exp: "دانه در خاک رشد کرده، جوانه می‌زند، به گیاه کوچکی تبدیل شده و درنهایت گل می‌دهد.",
       },
       {
         type: "fill", stage: 3,
-        q: "نیروی ___ اجسام را به سمت زمین می‌کشد.",
-        blank: "جاذبه", hint: "نیروی زمین", exp: "نیروی جاذبه زمین اجسام را به سمت مرکز زمین می‌کشد.",
+        q: "وقتی آب را خیلی داغ کنیم و بجوشانیم، تبدیل به ___ می‌شود.",
+        blank: "بخار", hint: "حالت گازی آب (گاز)", exp: "دما و حرارت زیاد، آب مایع را به حالت گازی (بخار) تبدیل می‌کند.",
+      },
+    ],
+    math: [
+      {
+        type: "mcq", stage: 1,
+        q: "حاصل ضرب ۷ × ۶ چند می‌شود؟",
+        options: ["۴۲", "۴۸", "۳۶", "۴۰"],
+        answer: 0, exp: "شش بسته هفت‌تایی، با جدول ضرب می‌فهمیم شش هفت‌تا برابر ۴۲ است.",
+      },
+      {
+        type: "fill", stage: 1,
+        q: "یک ساعت برابر با ___ دقیقه است.",
+        blank: "۶۰", hint: "شصت", exp: "هر عقربه دقیقه شمار برای کامل کردن یک ساعت، ۶۰ دقیقه حرکت می‌کند.",
+      },
+      {
+        type: "mcq", stage: 1,
+        q: "برای اندازه‌گیری طول دکمه‌ی لباس، از کدام پیمانه/واحد استفاده می‌کنیم؟",
+        options: ["کیلوگرم", "لیتر", "میلی‌متر", "متر"],
+        answer: 2, exp: "میلی‌متر واحد بسیار کوچکی است که برای اندازه‌گیری اشیاء بسیار ریز استفاده می‌شود.",
+      },
+      {
+        type: "mcq", stage: 2,
+        q: "در کسر ۳/۴ (سه چهارم)، عدد ۳ چه نام دارد؟",
+        options: ["مخرج", "صورت", "خط کسری", "واحد"],
+        answer: 1, exp: "عدد بالایی در کسر «صورت» و نشان دهنده قسمت‌های رنگ‌شده است.",
+      },
+      {
+        type: "fill", stage: 2,
+        q: "شکلی که ۴ ضلع مساوی و ۴ زاویه راست دارد، ___ است.",
+        blank: "مربع", hint: "چهارگوش منظم", exp: "مربع یک شکل هندسی دو بعدی است که تمام اضلاعش با هم সমানند.",
+      },
+      {
+        type: "mcq", stage: 2,
+        q: "اگر ۳۰ آبنبات را بین ۶ کودک منصفانه تقسیم کنیم، به هر نفر چند آبنبات می‌رسد؟",
+        options: ["۴", "۵", "۶", "۳"],
+        answer: 1, exp: "برای تقسیم عادلانه ۳۰ بر ۶، متوجه می‌شویم ۵ × ۶ برابر ۳۰ می‌شود.",
+      },
+      {
+        type: "mcq", stage: 3,
+        q: "محیط یک مثلث با سه ضلع که اندازه‌هایشان ۳، ۴ و ۵ سانتی‌متر است چقدر است؟",
+        options: ["۱۲", "۱۵", "۶۰", "۲۰"],
+        answer: 0, exp: "محیط مجموع طول لبه‌های بیرونی شکل است. جمع ۳، ۴ و ۵ برابر با ۱۲ است.",
+      },
+      {
+        type: "fill", stage: 3,
+        q: "دو کیلوگرم برابر با ___ گرم است.",
+        blank: "۲۰۰۰", hint: "دوهزار", exp: "یک کیلوگرم ۱۰۰۰ گرم است، پس دو کیلوگرم برابر با ۲۰۰۰ گرم خواهد بود.",
+      },
+    ],
+    computer: [
+      {
+        type: "mcq", stage: 1,
+        q: "برای ورود به اینترنت و سایت‌ها از چه برنامه‌ای استفاده می‌کنیم؟",
+        options: ["نرم‌افزار Word", "ماشین‌حساب", "مرورگر وب", "نرم‌افزار Paint"],
+        answer: 2, exp: "برنامه‌هایی مانند کروم یا سَفاری، مرورگر وب (Web Browser) نام دارند.",
+      },
+      {
+        type: "fill", stage: 1,
+        q: "هنگام ساختن رمز عبور، قانون اصلی این است که آن را ___ نگه داریم.",
+        blank: "مخفی", hint: "محرمانه/پنهان", exp: "در شهروندی دیجیتال، حفظ امنیت اطلاعات و پسورد شما اهمیت زیادی دارد.",
+      },
+      {
+        type: "mcq", stage: 1,
+        q: "در برنامه‌نویسی با بلوک‌ها، برای تکرار یک دستور از چه بلوکی استفاده می‌شود؟",
+        options: ["If", "Loop", "Start", "Print"],
+        answer: 1, exp: "حلقه یا Loop (Repeat) کمک می‌کند یک تکه کد به تعداد مشخصی تکرار شود.",
+      },
+      {
+        type: "mcq", stage: 2,
+        q: "ذخیره کردن فایل یا بازی از اینترنت روی کامپیوتر شخصی چه نام دارد؟",
+        options: ["آپلود", "دانلود", "کپی‌رایت", "حذف"],
+        answer: 1, exp: "دریافت اطلاعات و فایل از سرورهای اینترنتی به کامپیوتر ما دانلود (Download) است.",
+      },
+      {
+        type: "fill", stage: 2,
+        q: "برای نوشتن با حروف بزرگ در کیبورد کامپیوتر، کلید ___ را روشن می‌کنیم.",
+        blank: "Caps Lock", hint: "کپس لاک", exp: "کلید Caps Lock به شما کمک می‌کند تمام حروف انگلیسی را به حالت Capital تایپ کنید.",
+      },
+      {
+        type: "mcq", stage: 2,
+        q: "اگر فرد ناشناسی در بازی آنلاین از ما عکس خواست، چه‌کار کنیم؟",
+        options: ["بفرستیم", "هرگز قبول نکنیم و به والدین اطلاع دهیم", "اول عکس او را بخواهیم", "عکس فیک بفرستیم"],
+        answer: 1, exp: "امنیت سایبری به ما یاد می‌دهد که با غریبه‌ها اطلاعات مبادله نکنیم.",
+      },
+      {
+        type: "mcq", stage: 3,
+        q: "قطعات فیزیکی و ملموس کامپیوتر (مثل ماوس، کیبورد و مانیتور) چه خوانده می‌شوند؟",
+        options: ["نرم‌افزار", "مرورگر", "سخت‌افزار", "اپلیکیشن"],
+        answer: 2, exp: "هر چیزی در کامپیوتر که می‌توان آن را لمس کرد، سخت‌افزار (Hardware) نام دارد.",
+      },
+      {
+        type: "order", stage: 3,
+        q: "برای جستجو در گوگل مراحل را مرتب کن:",
+        words: ["به گوگل برو", "کلمه مورد نظر", "را تایپ کن", "سپس اینتر بزن"],
+        answer: "به گوگل برو کلمه مورد نظر را تایپ کن سپس اینتر بزن",
+        exp: "نحوه اصولی کار با موتورهای جستجو.",
       },
     ],
   };
@@ -245,11 +403,14 @@ function StarBurst({ count }) {
 // ─── Main App ─────────────────────────────────────────────────────────────
 export default function App() {
   const [screen, setScreen] = useState(localStorage.getItem('token') ? 'home' : 'login'); // home | upload | game | summary | hall | login
+  const [hallTab, setHallTab] = useState('badges');
   const [uploadedText, setUploadedText] = useState("");
   const [uploadSubject, setUploadSubject] = useState("persian");
   const [loading, setLoading] = useState(false);
   const [generatedMissions, setGeneratedMissions] = useState(null);
   const [activeSubject, setActiveSubject] = useState(null);
+  const [activeLessonId, setActiveLessonId] = useState(null);
+  const [currentLessonItem, setCurrentLessonItem] = useState(null);
   const [missions, setMissions] = useState([]);
   const [missionIdx, setMissionIdx] = useState(0);
   const [stage, setStage] = useState(1);
@@ -352,9 +513,10 @@ export default function App() {
     return () => clearTimeout(timerRef.current);
   }, [timerActive, timeLeft]);
 
-  function startMissions(subjectId, customMissions) {
+  function startMissions(subjectId, customMissions, lessonId = null) {
     const ms = customMissions || buildMissions(subjectId);
     setActiveSubject(subjectId);
+    setActiveLessonId(lessonId);
     setMissions(ms);
     setMissionIdx(0);
     setStage(1);
@@ -423,6 +585,19 @@ export default function App() {
           score: score,
           stars: stars + (feedback?.stars || 0)
         });
+        if (activeLessonId) {
+          api.updateLessonProgress(token, activeLessonId, 'completed').then(res => {
+            if (res.progress) {
+              setUser(u => {
+                if (!u) return u;
+                const newProg = [...(u.lessonProgress || [])];
+                const i = newProg.findIndex(p => p.lessonId === activeLessonId);
+                if (i > -1) newProg[i] = res.progress; else newProg.push(res.progress);
+                return { ...u, lessonProgress: newProg };
+              });
+            }
+          }).catch(err => console.error(err));
+        }
       }
 
       setScreen("summary");
@@ -506,16 +681,73 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
     );
   }
 
-  if (screen === "home") return <HomeScreen
-    onStart={(id) => startMissions(id)}
-    onUpload={() => setScreen("upload")}
-    completedSubjects={completedSubjects}
-    gameStats={gameStats}
-    earnedBadges={earnedBadges}
-    onHall={() => setScreen("hall")}
-    user={user}
-    onLogout={logout}
-  />;
+  if (screen === "home" || screen === "chapters" || screen === "hall") return (
+    <>
+      <HomeScreen
+        onStart={(id) => {
+          if (id === 'persian') {
+            setActiveSubject(id);
+            setScreen("chapters");
+          } else {
+            startMissions(id);
+          }
+        }}
+        onUpload={() => setScreen("upload")}
+        completedSubjects={completedSubjects}
+        gameStats={gameStats}
+        earnedBadges={earnedBadges}
+        onHall={(targetTab) => {
+          setHallTab(targetTab || 'badges');
+          setScreen("hall");
+        }}
+        user={user}
+        onLogout={logout}
+      />
+      {screen === "chapters" && (
+        <ChaptersScreen
+          subject={subj}
+          token={token}
+          userProgress={user?.lessonProgress || []}
+          onBack={() => setScreen("home")}
+          onStudy={(lessonId) => {
+            api.getLessonDetails(token, lessonId).then(data => {
+              setCurrentLessonItem(data);
+              setScreen("study");
+              api.updateLessonProgress(token, lessonId, 'read').then(res => {
+                if (res.progress) {
+                  setUser(u => {
+                    if (!u) return u;
+                    const newProg = [...(u.lessonProgress || [])];
+                    const i = newProg.findIndex(p => p.lessonId === lessonId);
+                    if (i > -1) newProg[i] = res.progress; else newProg.push(res.progress);
+                    return { ...u, lessonProgress: newProg };
+                  });
+                }
+              }).catch(e => console.error(e));
+            });
+          }}
+          onPlay={(lessonId) => {
+            api.getLessonDetails(token, lessonId).then(data => {
+              startMissions(activeSubject, data.missions, lessonId);
+            });
+          }}
+        />
+      )}
+      {screen === "hall" && (
+        <BadgeHall
+          initialTab={hallTab}
+          user={user}
+          setUser={setUser}
+          token={token}
+          earnedBadges={earnedBadges}
+          gameStats={gameStats}
+          completedSubjects={completedSubjects}
+          onBack={() => setScreen("home")}
+          onLogout={logout}
+        />
+      )}
+    </>
+  );
 
   if (screen === "upload") return <UploadScreen
     uploadedText={uploadedText} setUploadedText={setUploadedText}
@@ -526,12 +758,7 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
     fileRef={fileRef}
   />;
 
-  if (screen === "hall") return <BadgeHall
-    earnedBadges={earnedBadges}
-    gameStats={gameStats}
-    completedSubjects={completedSubjects}
-    onBack={() => setScreen("home")}
-  />;
+
 
   if (screen === "summary") return <SummaryScreen
     subject={subj} stars={stars} score={score}
@@ -557,6 +784,15 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
     />
   );
 
+
+
+  if (screen === "study") return <StudyScreen
+    subject={subj}
+    lesson={currentLessonItem}
+    onBack={() => setScreen("chapters")}
+    onPlay={() => startMissions(activeSubject, currentLessonItem?.missions, currentLessonItem?._id)}
+  />;
+
   return null;
 }
 
@@ -565,12 +801,76 @@ function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBad
   return (
     <div style={{
       minHeight: "100vh", background: "linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)",
-      fontFamily: "'Vazirmatn', 'Segoe UI', sans-serif", padding: "20px",
-      display: "flex", flexDirection: "column", alignItems: "center",
+      fontFamily: "'Vazirmatn', 'Segoe UI', sans-serif", padding: "20px", paddingBottom: "180px",
+      display: "flex", flexDirection: "column", alignItems: "center", position: "relative"
     }}>
-      <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', color: '#fff', fontSize: '14px', marginBottom: '20px' }}>
-        <span>{user?.email} خوش آمدید</span>
-        <button onClick={onLogout} style={{ background: 'transparent', border: '1px solid #ff4d4d', color: '#ff4d4d', padding: '5px 10px', borderRadius: '5px', cursor: 'pointer' }}>خروج</button>
+      <LiveClock />
+      {/* Dashboard Floating Nav Bar */}
+      <div style={{
+        position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000,
+        width: 'calc(100% - 32px)', maxWidth: '480px', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(24px)',
+        border: '1px solid rgba(255,255,255,0.15)', borderRadius: '32px',
+        padding: '10px 14px', boxShadow: '0 10px 40px rgba(0,0,0,0.6)',
+        animation: 'fadeSlideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+      }}>
+        {/* Left: User Profile + Stats */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
+          
+          <div onClick={() => onHall('profile')} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+            {/* Avatar */}
+            <div style={{
+              width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
+              background: 'linear-gradient(135deg, #FFD700, #FF6B6B)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '20px', fontWeight: '900', color: '#fff',
+              boxShadow: '0 4px 16px rgba(255,107,107,0.5)'
+            }}>
+              {user?.email ? user.email.charAt(0).toUpperCase() : '👤'}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', direction: 'ltr', textAlign: 'left', paddingRight: '4px', gap: '2px' }}>
+              <span style={{ fontSize: '14px', fontWeight: '800', color: '#fff', whiteSpace: 'nowrap', textShadow: '0 1px 2px rgba(0,0,0,0.3)', lineHeight: 1.2 }}>
+                {user?.name || user?.email?.split('@')[0] || 'Student'}
+              </span>
+              <span style={{ fontSize: '10px', color: '#FFD700', fontWeight: 'bold', background: 'rgba(255,215,0,0.15)', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', width: 'fit-content' }}>
+                GRADE 3
+              </span>
+            </div>
+          </div>
+            
+          {/* Compact Stats Row */}
+          <div onClick={() => onHall('badges')} style={{ 
+            display: 'flex', gap: '14px', alignItems: 'center', background: 'rgba(0,0,0,0.25)', 
+            padding: '4px 12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)',
+            cursor: 'pointer', flex: 1, marginLeft: '4px'
+          }}>
+            {[
+              { val: gameStats.totalStars, icon: "⭐" },
+              { val: gameStats.completedLessons, icon: "📚" },
+              { val: earnedBadges.length, icon: "🏅" },
+            ].map((s, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <span style={{ fontSize: '12px' }}>{s.icon}</span>
+                <span style={{ color: '#FFD700', fontWeight: '900', fontSize: '12px' }}>{s.val}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Right: Logout Button */}
+        <button className="btn-glow" onClick={onLogout} style={{
+          background: 'rgba(255,77,77,0.15)', border: '1px solid rgba(255,77,77,0.3)',
+          color: '#ff4d4d', padding: '10px', borderRadius: '16px', cursor: 'pointer',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          transition: 'all 0.2s', marginLeft: '8px'
+        }} title="خروج">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+        </button>
       </div>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap');
@@ -579,6 +879,7 @@ function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBad
         @keyframes shimmer { 0%{background-position:-200%} 100%{background-position:200%} }
         @keyframes spin { 0%{transform:rotate(0deg)} 100%{transform:rotate(360deg)} }
         @keyframes fadeSlide { 0%{opacity:0;transform:translateY(20px)} 100%{opacity:1;transform:translateY(0)} }
+        @keyframes fadeSlideUp { 0%{opacity:0;transform:translate(-50%, 40px)} 100%{opacity:1;transform:translate(-50%, 0)} }
         .subject-card:hover { transform:scale(1.05) translateY(-4px) !important; box-shadow: 0 20px 40px rgba(0,0,0,0.4) !important; }
         .btn-glow:hover { filter:brightness(1.15); transform:scale(1.03); }
       `}</style>
@@ -595,24 +896,7 @@ function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBad
         <p style={{ color: "#aaa", fontSize: 15, direction: "rtl" }}>هر درس یک ماموریت جدید 🌟</p>
       </div>
 
-      {/* Stats bar */}
-      <div style={{
-        display: "flex", gap: 16, marginBottom: 24, background: "rgba(255,255,255,0.08)",
-        borderRadius: 20, padding: "12px 20px", backdropFilter: "blur(10px)",
-        animation: "fadeSlide 0.6s 0.1s both",
-      }}>
-        {[
-          { label: "ستاره", val: gameStats.totalStars, icon: "⭐" },
-          { label: "درس", val: gameStats.completedLessons, icon: "📚" },
-          { label: "مدال", val: earnedBadges.length, icon: "🏅" },
-        ].map(s => (
-          <div key={s.label} style={{ textAlign: "center" }}>
-            <div style={{ fontSize: 22 }}>{s.icon}</div>
-            <div style={{ color: "#FFD700", fontWeight: 700, fontSize: 18 }}>{s.val}</div>
-            <div style={{ color: "#aaa", fontSize: 11, direction: "rtl" }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
+
 
       {/* Subject cards */}
       <div style={{
@@ -655,17 +939,9 @@ function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBad
         }}>
           📸 آپلود کتاب درسی
         </button>
-        <button className="btn-glow" onClick={onHall} style={{
-          background: "linear-gradient(135deg,#F39C12,#D68910)", color: "#fff",
-          border: "none", borderRadius: 16, padding: "12px 22px", fontSize: 14,
-          cursor: "pointer", fontWeight: 700, transition: "all 0.2s",
-          boxShadow: "0 6px 20px rgba(243,156,18,0.4)",
-        }}>
-          🏆 تالار افتخار
-        </button>
       </div>
 
-      {completedSubjects.length === 4 && (
+      {completedSubjects.length === 6 && (
         <div style={{
           marginTop: 24, background: "linear-gradient(135deg,#FFD700,#FF6B6B)",
           borderRadius: 20, padding: "16px 24px", textAlign: "center",
@@ -673,7 +949,7 @@ function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBad
         }}>
           <div style={{ fontSize: 32 }}>🏆🎉🏆</div>
           <div style={{ fontWeight: 900, fontSize: 18, color: "#fff", direction: "rtl" }}>
-            قهرمان روز! همه ۴ درس رو تموم کردی!
+            قهرمان روز! همه ۶ درس رو تموم کردی!
           </div>
         </div>
       )}
@@ -683,41 +959,76 @@ function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBad
 
 // ─── UPLOAD SCREEN ────────────────────────────────────────────────────────
 function UploadScreen({ uploadedText, setUploadedText, uploadSubject, setUploadSubject, onAnalyze, loading, onBack, photoFile, setPhotoFile, fileRef }) {
+  const [tab, setTab] = useState('mission'); // 'mission' | 'pdf'
+  const [pdfFile, setPdfFile] = useState(null);
+  const pdfRef = useRef();
+
   async function handleFile(e) {
     const file = e.target.files[0];
     if (!file) return;
-    setPhotoFile(file);
 
-    if (file.type.startsWith("image/")) {
-      // Convert image to base64 and send to Claude API for OCR
-      const reader = new FileReader();
-      reader.onload = async (ev) => {
-        const base64 = ev.target.result.split(",")[1];
-        const mediaType = file.type;
-        try {
-          const res = await fetch("https://api.anthropic.com/v1/messages", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              model: "claude-sonnet-4-20250514",
-              max_tokens: 1000,
-              messages: [{
-                role: "user",
-                content: [
-                  { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-                  { type: "text", text: "Please extract all text from this textbook page. Return only the text, preserving paragraphs. No extra commentary." }
-                ]
-              }]
-            }),
-          });
-          const data = await res.json();
-          const text = data.content?.map(i => i.text || "").join("") || "";
-          setUploadedText(text);
-        } catch {
-          alert("خطا در خواندن تصویر");
-        }
-      };
-      reader.readAsDataURL(file);
+    if (tab === 'pdf') {
+      if (file.type !== "application/pdf") {
+        alert("لطفا فایل PDF انتخاب کنید.");
+        return;
+      }
+      setPdfFile(file);
+      return;
+    }
+
+    // mission tab (image)
+    if (!file.type.startsWith("image/")) {
+      alert("لطفا فقط عکس انتخاب کنید.");
+      return;
+    }
+    setPhotoFile(file);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result.split(",")[1];
+      const mediaType = file.type;
+      try {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: 1000,
+            messages: [{
+              role: "user",
+              content: [
+                { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
+                { type: "text", text: "Please extract all text from this textbook page. Return only the text, preserving paragraphs. No extra commentary." }
+              ]
+            }]
+          }),
+        });
+        const data = await res.json();
+        const text = data.content?.map(i => i.text || "").join("") || "";
+        setUploadedText(text);
+      } catch {
+        alert("خطا در پردازش تصویر");
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function handlePdfUploadSubmit() {
+    if (!pdfFile) return;
+    const formData = new FormData();
+    formData.append("subject", uploadSubject);
+    formData.append("pdf", pdfFile);
+
+    try {
+      const token = localStorage.getItem('token');
+      // Using global loading state is not easy without modifying App, so let's fire it locally? Let's just await without global loading lock or we can add a local loading.
+      // But we can just use the api.
+      const res = await api.uploadPdf(token, formData);
+      if (res.success) {
+        alert(res.message);
+        onBack();
+      } else alert("خطا: " + res.error);
+    } catch (e) {
+      alert("خطا در آپلود PDF");
     }
   }
 
@@ -734,12 +1045,16 @@ function UploadScreen({ uploadedText, setUploadedText, uploadSubject, setUploadS
         color: "#aaa", fontSize: 22, cursor: "pointer", marginBottom: 10,
       }}>← برگشت</button>
 
-      <div style={{ color: "#fff", fontSize: 28, fontWeight: 900, marginBottom: 8, direction: "rtl" }}>
-        📸 آپلود صفحه کتاب
+      <div style={{ display: 'flex', gap: 10, marginBottom: 24, padding: 4, background: 'rgba(0,0,0,0.3)', borderRadius: 16 }}>
+        <button onClick={() => setTab('pdf')} style={{
+          padding: '12px 24px', borderRadius: 12, border: 'none', fontWeight: 'bold', fontSize: 16, cursor: 'pointer',
+          background: tab === 'pdf' ? '#FFD700' : 'transparent', color: tab === 'pdf' ? '#000' : '#aaa', transition: '0.2s'
+        }}>آپلود کل کتاب (PDF)</button>
+        <button onClick={() => setTab('mission')} style={{
+          padding: '12px 24px', borderRadius: 12, border: 'none', fontWeight: 'bold', fontSize: 16, cursor: 'pointer',
+          background: tab === 'mission' ? '#4ECDC4' : 'transparent', color: tab === 'mission' ? '#000' : '#aaa', transition: '0.2s'
+        }}>استخراج ماموریت از یک صفحه</button>
       </div>
-      <p style={{ color: "#aaa", direction: "rtl", textAlign: "center", fontSize: 14, marginBottom: 20 }}>
-        عکس صفحه کتاب را آپلود کن یا متن را مستقیم وارد کن
-      </p>
 
       {/* Subject selector */}
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", justifyContent: "center" }}>
@@ -756,50 +1071,81 @@ function UploadScreen({ uploadedText, setUploadedText, uploadSubject, setUploadS
         ))}
       </div>
 
-      {/* File upload */}
-      <div
-        onClick={() => fileRef.current?.click()}
-        style={{
-          width: "100%", maxWidth: 400, border: "2px dashed rgba(255,255,255,0.3)",
-          borderRadius: 20, padding: "30px 20px", textAlign: "center",
-          cursor: "pointer", marginBottom: 16, background: "rgba(255,255,255,0.05)",
-          transition: "all 0.2s",
-        }}
-      >
-        <div style={{ fontSize: 42 }}>{photoFile ? "✅" : "📷"}</div>
-        <div style={{ color: "#ccc", direction: "rtl", marginTop: 8 }}>
-          {photoFile ? photoFile.name : "برای آپلود عکس کلیک کن"}
-        </div>
-        <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: "none" }} />
-      </div>
+      {tab === 'mission' ? (
+        <>
+          <div
+            onClick={() => fileRef.current?.click()}
+            style={{
+              width: "100%", maxWidth: 400, border: "2px dashed #4ECDC4",
+              borderRadius: 20, padding: "30px 20px", textAlign: "center",
+              cursor: "pointer", marginBottom: 16, background: "rgba(78,205,196,0.05)",
+            }}
+          >
+            <div style={{ fontSize: 42 }}>{photoFile ? "✅" : "📷"}</div>
+            <div style={{ color: "#fff", direction: "rtl", marginTop: 8 }}>
+              {photoFile ? photoFile.name : "برای انتخاب عکسِِ کتاب کلیک کن"}
+            </div>
+            <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: "none" }} />
+          </div>
 
-      {/* Text area */}
-      <textarea
-        value={uploadedText}
-        onChange={e => setUploadedText(e.target.value)}
-        placeholder="یا متن را اینجا بنویس / پیست کن..."
-        style={{
-          width: "100%", maxWidth: 400, minHeight: 140,
-          background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)",
-          borderRadius: 16, padding: 16, color: "#fff", fontSize: 14,
-          resize: "vertical", direction: "rtl", fontFamily: "inherit", boxSizing: "border-box",
-        }}
-      />
+          <textarea
+            value={uploadedText}
+            onChange={e => setUploadedText(e.target.value)}
+            placeholder="یا متن صفحه را مستقیماً اینجا وارد کن..."
+            style={{
+              width: "100%", maxWidth: 400, minHeight: 140,
+              background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)",
+              borderRadius: 16, padding: 16, color: "#fff", fontSize: 14,
+              resize: "vertical", direction: "rtl", fontFamily: "inherit", boxSizing: "border-box",
+            }}
+          />
 
-      <button
-        onClick={onAnalyze}
-        disabled={loading || !uploadedText.trim()}
-        style={{
-          marginTop: 16, padding: "14px 36px",
-          background: uploadedText.trim() ? "linear-gradient(135deg,#9B59B6,#3498DB)" : "#444",
-          border: "none", borderRadius: 20, color: "#fff", fontSize: 16,
-          fontWeight: 800, cursor: uploadedText.trim() ? "pointer" : "not-allowed",
-          boxShadow: "0 8px 20px rgba(155,89,182,0.3)", direction: "rtl",
-          display: "flex", alignItems: "center", gap: 10,
-        }}
-      >
-        {loading ? <><span style={{ animation: "spin 1s linear infinite", display: "inline-block" }}>⚙️</span> در حال پردازش...</> : "🚀 ساخت ماموریت‌ها"}
-      </button>
+          <button
+            onClick={onAnalyze}
+            disabled={loading || !uploadedText.trim()}
+            style={{
+              marginTop: 16, padding: "14px 36px",
+              background: uploadedText.trim() ? "linear-gradient(135deg,#4ECDC4,#1A8E87)" : "#444",
+              border: "none", borderRadius: 20, color: "#fff", fontSize: 16,
+              fontWeight: 800, cursor: uploadedText.trim() ? "pointer" : "not-allowed",
+              direction: "rtl", display: "flex", alignItems: "center", gap: 10,
+            }}
+          >
+            {loading ? "⚙️ در حال پردازش..." : "🚀 ساخت ماموریت"}
+          </button>
+        </>
+      ) : (
+        <>
+          <div
+            onClick={() => pdfRef.current?.click()}
+            style={{
+              width: "100%", maxWidth: 400, border: "2px dashed #FFD700",
+              borderRadius: 20, padding: "30px 20px", textAlign: "center",
+              cursor: "pointer", marginBottom: 16, background: "rgba(255,215,0,0.05)",
+            }}
+          >
+            <div style={{ fontSize: 42 }}>{pdfFile ? "📄" : "📁"}</div>
+            <div style={{ color: "#fff", direction: "rtl", marginTop: 8 }}>
+              {pdfFile ? pdfFile.name : "برای انتخاب فایل PDF کتاب درسی کلیک کن"}
+            </div>
+            <input ref={pdfRef} type="file" accept="application/pdf" onChange={handleFile} style={{ display: "none" }} />
+          </div>
+
+          <button
+            onClick={handlePdfUploadSubmit}
+            disabled={!pdfFile}
+            style={{
+              marginTop: 16, padding: "14px 36px",
+              background: pdfFile ? "linear-gradient(135deg,#FFD700,#FF8C00)" : "#444",
+              border: "none", borderRadius: 20, color: "#000", fontSize: 16,
+              fontWeight: 800, cursor: pdfFile ? "pointer" : "not-allowed",
+              direction: "rtl", display: "flex", alignItems: "center", gap: 10,
+            }}
+          >
+            بارگذاری کتاب در سیستم
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -826,6 +1172,29 @@ function GameScreen({
     setSelectedWords(s => s.filter((_, i) => i !== idx));
     setDragWords(d => [...d, w]);
   }
+
+  const playAudio = (text) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      if (subject?.id === 'english') {
+        utterance.lang = 'en-US';
+      } else if (subject?.id === 'arabic') {
+        utterance.lang = 'ar-SA';
+      } else {
+        utterance.lang = 'fa-IR';
+      }
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, [mission]);
 
   if (showStageComplete) return (
     <div style={{
@@ -924,12 +1293,20 @@ function GameScreen({
         )}
 
         {/* Question */}
-        <div style={{
-          color: "#fff", fontWeight: 700, fontSize: 17,
-          direction: subject?.dir || "rtl", lineHeight: 1.6, marginBottom: 20,
-          textAlign: subject?.dir === "ltr" ? "left" : "right",
-        }}>
-          {mission.q}
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: 20, flexDirection: subject?.dir === 'ltr' ? 'row' : 'row-reverse' }}>
+          <button onClick={() => playAudio(mission.q)} style={{
+            background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+            width: 44, height: 44, color: '#FFD700', cursor: 'pointer', fontSize: 20, flexShrink: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s',
+          }} title="با صدای بلند بخوان">🔊</button>
+          <div style={{
+            color: "#fff", fontWeight: 700, fontSize: 17,
+            direction: subject?.dir || "rtl", lineHeight: 1.6,
+            textAlign: subject?.dir === "ltr" ? "left" : "right",
+            flex: 1
+          }}>
+            {mission.q}
+          </div>
         </div>
 
         {/* MCQ */}
@@ -970,6 +1347,7 @@ function GameScreen({
                   background: "rgba(255,255,255,0.1)", border: "2px solid rgba(255,255,255,0.2)",
                   borderRadius: 16, color: "#fff", fontSize: 16, fontFamily: "inherit",
                   direction: subject?.dir, outline: "none",
+                  textAlign: subject?.dir === "ltr" ? "left" : "right"
                 }}
                 autoFocus
               />
@@ -1038,6 +1416,7 @@ function GameScreen({
                       border: `2px solid ${isCorrect ? "#27AE60" : "rgba(255,255,255,0.1)"}`,
                       color: isCorrect ? "#2ECC71" : "#888",
                       direction: subject?.dir, fontSize: 14,
+                      textAlign: subject?.dir === "ltr" ? "left" : "right"
                     }}>
                       {isCorrect && "✅ "}{opt}
                     </div>
@@ -1063,8 +1442,15 @@ function GameScreen({
                 {feedback.correct ? "عالی بود!" : feedback.timeout ? "وقت تموم شد!" : "اشتباه!"}
               </div>
               {feedback.correct && <StarBurst count={feedback.stars} />}
-              <div style={{ color: "#ccc", fontSize: 13, marginTop: 10, direction: "rtl", lineHeight: 1.7 }}>
-                {feedback.exp}
+              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '8px', marginTop: 10, direction: 'rtl' }}>
+                <button onClick={() => playAudio(feedback.exp)} title="پخش توضیح" style={{
+                  background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+                  width: 32, height: 32, color: '#4ECDC4', cursor: 'pointer', fontSize: 16, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>🔊</button>
+                <div style={{ color: "#ccc", fontSize: 13, lineHeight: 1.7, textAlign: 'right' }}>
+                  {feedback.exp}
+                </div>
               </div>
             </div>
 
@@ -1178,22 +1564,77 @@ function SummaryScreen({ subject, stars, score, missions, onHome, completedSubje
 }
 
 // ─── BADGE HALL ───────────────────────────────────────────────────────────
-function BadgeHall({ earnedBadges, gameStats, completedSubjects, onBack }) {
+function BadgeHall({ initialTab, user, setUser, token, earnedBadges, gameStats, completedSubjects, onBack, onLogout }) {
+  const [tab, setTab] = useState(initialTab || 'badges'); // 'badges' | 'profile'
+  const [editName, setEditName] = useState(user?.name || '');
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const handleUpdateName = async () => {
+    if (!token) return;
+    setIsUpdating(true);
+    try {
+      const res = await api.updateProfile(token, { name: editName });
+      if (res.user) {
+        setUser(prev => ({ ...prev, name: res.user.name }));
+        alert('نام شما با موفقیت ثبت شد! ✨');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('خطا در بروزرسانی نام');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = 'unset'; };
+  }, []);
+
   return (
-    <div style={{
-      minHeight: "100vh", background: "linear-gradient(135deg,#1a1a2e,#0f3460)",
-      fontFamily: "'Vazirmatn','Segoe UI',sans-serif", padding: "24px 20px",
-      display: "flex", flexDirection: "column", alignItems: "center",
+    <div onClick={onBack} style={{
+      position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh',
+      background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,
+      fontFamily: "'Vazirmatn','Segoe UI',sans-serif", padding: "20px"
     }}>
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap');
         @keyframes pop{0%{transform:scale(0);opacity:0}70%{transform:scale(1.3)}100%{transform:scale(1);opacity:1}}
         @keyframes shimmer{0%{background-position:-200%}100%{background-position:200%}}
+        @keyframes scaleUp { 0%{transform:scale(0.8);opacity:0} 100%{transform:scale(1);opacity:1} }
       `}</style>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: 'linear-gradient(135deg,#1a1a2e,#0f3460)',
+        width: '100%', maxWidth: 480, maxHeight: '85vh', overflowY: 'auto',
+        borderRadius: 24, padding: "24px", boxShadow: "0 20px 40px rgba(0,0,0,0.5)",
+        border: '2px solid #FFD700',
+        animation: "scaleUp 0.3s ease-out forwards",
+        display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative'
+      }}>
+        
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 20 }}>
+          <button onClick={onBack} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "50%", color: "#fff", width: 40, height: 40, fontSize: 18, cursor: "pointer", display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
+          
+          <div style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', borderRadius: 24, padding: 4 }}>
+            <button onClick={() => setTab('badges')} style={{
+              background: tab === 'badges' ? 'rgba(255,215,0,0.15)' : 'transparent',
+              color: tab === 'badges' ? '#FFD700' : '#888',
+              border: tab === 'badges' ? '1px solid #FFD70066' : '1px solid transparent',
+              borderRadius: 20, padding: '8px 16px', fontWeight: tab === 'badges' ? 800 : 600,
+              cursor: 'pointer', transition: 'all 0.2s', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6
+            }}>🏆 دستاوردها</button>
+            <button onClick={() => setTab('profile')} style={{
+              background: tab === 'profile' ? 'rgba(78,205,196,0.15)' : 'transparent',
+              color: tab === 'profile' ? '#4ECDC4' : '#888',
+              border: tab === 'profile' ? '1px solid #4ECDC466' : '1px solid transparent',
+              borderRadius: 20, padding: '8px 16px', fontWeight: tab === 'profile' ? 800 : 600,
+              cursor: 'pointer', transition: 'all 0.2s', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6
+            }}>👤 پروفایل من</button>
+          </div>
+        </div>
 
-      <button onClick={onBack} style={{
-        alignSelf: "flex-start", background: "none", border: "none",
-        color: "#aaa", fontSize: 20, cursor: "pointer", marginBottom: 10,
-      }}>← برگشت</button>
+        {tab === 'badges' && (
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'fadeSlide 0.4s both' }}>
 
       <h2 style={{
         fontWeight: 900, fontSize: 26, direction: "rtl",
@@ -1204,11 +1645,12 @@ function BadgeHall({ earnedBadges, gameStats, completedSubjects, onBack }) {
 
       {/* Stats */}
       <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12,
+        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
         width: "100%", maxWidth: 380, marginBottom: 28,
       }}>
         {[
           { icon: "⭐", val: gameStats.totalStars, label: "ستاره کل" },
+          { icon: "🏅", val: earnedBadges.length, label: "جمع مدال‌ها" },
           { icon: "📚", val: gameStats.completedLessons, label: "درس کامل" },
           { icon: "⚡", val: gameStats.fastAnswers, label: "پاسخ سریع" },
         ].map(s => (
@@ -1216,9 +1658,9 @@ function BadgeHall({ earnedBadges, gameStats, completedSubjects, onBack }) {
             background: "rgba(255,255,255,0.07)", borderRadius: 16,
             padding: "14px 8px", textAlign: "center",
           }}>
-            <div style={{ fontSize: 24 }}>{s.icon}</div>
+            <div style={{ fontSize: 24, marginBottom: 4 }}>{s.icon}</div>
             <div style={{ color: "#FFD700", fontWeight: 900, fontSize: 22 }}>{s.val}</div>
-            <div style={{ color: "#aaa", fontSize: 11, direction: "rtl" }}>{s.label}</div>
+            <div style={{ color: "#aaa", fontSize: 11, direction: "rtl", marginTop: 2 }}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -1248,7 +1690,362 @@ function BadgeHall({ earnedBadges, gameStats, completedSubjects, onBack }) {
             );
           })}
         </div>
+          </div>
+        </div>
+        )}
+
+        {tab === 'profile' && (
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'fadeSlide 0.4s both', direction: 'rtl', padding: '10px 0 20px' }}>
+            <div style={{
+              width: '80px', height: '80px', borderRadius: '50%',
+              background: 'linear-gradient(135deg, #4ECDC4, #556270)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: '40px', fontWeight: '900', color: '#fff',
+              boxShadow: '0 8px 24px rgba(78,205,196,0.3)', marginBottom: 16
+            }}>
+              {user?.email ? user.email.charAt(0).toUpperCase() : '👤'}
+            </div>
+            
+            <h3 style={{ color: '#fff', fontSize: 24, margin: '0 0 8px 0', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>پروفایل فضانورد</h3>
+            
+            <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 20, width: '100%', maxWidth: 360, marginBottom: 24 }}>
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: 'block', color: '#aaa', fontSize: 13, marginBottom: 8, marginRight: 5 }}>نام و نام خانوادگی:</label>
+                <div style={{ display: 'flex', gap: 10 }}>
+                  <input 
+                    type="text" 
+                    value={editName} 
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="نام خود را وارد کنید..."
+                    style={{
+                      flex: 1, padding: '12px 16px', borderRadius: 14,
+                      background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+                      color: '#fff', fontSize: 14, outline: 'none', fontFamily: 'inherit'
+                    }}
+                  />
+                  <button 
+                    onClick={handleUpdateName}
+                    disabled={isUpdating}
+                    style={{
+                      padding: '0 20px', background: '#4ECDC4', border: 'none', borderRadius: 14,
+                      color: '#fff', fontWeight: 'bold', cursor: 'pointer', opacity: isUpdating ? 0.6 : 1
+                    }}
+                  >
+                    {isUpdating ? '...' : 'ثبت'}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
+                <span style={{ color: '#aaa', fontSize: 14 }}>ایمیل:</span>
+                <span style={{ color: '#fff', fontSize: 14, fontWeight: 'bold', direction: 'ltr' }}>{user?.email || 'نامشخص'}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
+                <span style={{ color: '#aaa', fontSize: 14 }}>پایه تحصیلی:</span>
+                <span style={{ color: '#4ECDC4', fontSize: 14, fontWeight: 'bold', background: 'rgba(78,205,196,0.1)', padding: '4px 10px', borderRadius: 8 }}>گرید ۳ (سوم دبستان)</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#aaa', fontSize: 14 }}>وضعیت ماموریت‌ها:</span>
+                <span style={{ color: '#FFD700', fontSize: 14, fontWeight: 'bold' }}>{completedSubjects.length} درس کامل شده</span>
+              </div>
+            </div>
+
+            <button className="btn-glow" onClick={onLogout} style={{
+              background: 'rgba(255,77,77,0.15)', border: '1px solid rgba(255,77,77,0.4)',
+              color: '#ff4d4d', padding: '12px 32px', borderRadius: '16px', cursor: 'pointer',
+              fontWeight: 'bold', fontSize: '15px', transition: 'all 0.2s', display: 'flex', gap: 10, alignItems: 'center'
+            }}>
+              <span>خروج از حساب کاربری</span>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                <polyline points="16 17 21 12 16 7"></polyline>
+                <line x1="21" y1="12" x2="9" y2="12"></line>
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+// ─── CHAPTERS SCREEN ──────────────────────────────────────────────────────
+function ChaptersScreen({ subject, token, onBack, onStudy, onPlay, userProgress }) {
+  const [chapters, setChapters] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const c = subject?.color || COLORS.persian;
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    Promise.all([
+      api.getLessons(token, subject.id),
+      api.pdfStatus(token, subject.id)
+    ]).then(([lessonsData, pdfData]) => {
+      setChapters(lessonsData);
+      if (pdfData.exists) {
+        setPdfUrl((import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/$/, '') + pdfData.url);
+      }
+      setLoading(false);
+    }).catch(() => setLoading(false));
+
+    return () => { document.body.style.overflow = 'unset'; };
+  }, [subject, token]);
+
+  const getProgress = (lessonId) => {
+    return userProgress?.find(p => p.lessonId === lessonId) || { read: false, completed: false };
+  };
+
+  return (
+    <div onClick={onBack} style={{
+      position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh',
+      background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(12px)',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000,
+      fontFamily: "'Vazirmatn','Segoe UI',sans-serif", padding: "20px"
+    }}>
+      <style>{`
+        @keyframes modalShow { 
+          from { opacity: 0; transform: translateY(40px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .chapter-card {
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .chapter-card:hover {
+          background: rgba(255, 255, 255, 0.08) !important;
+          transform: translateX(-5px);
+        }
+        .action-btn {
+          transition: all 0.2s;
+        }
+        .action-btn:hover {
+          filter: brightness(1.1);
+          transform: scale(1.02);
+        }
+        .action-btn:active {
+          transform: scale(0.98);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.05);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.2);
+          border-radius: 10px;
+        }
+      `}</style>
+      
+      <div onClick={(e) => e.stopPropagation()} style={{
+        background: 'linear-gradient(160deg, #1a1a2e 0%, #16213e 100%)',
+        width: '100%', maxWidth: 500, maxHeight: '85vh',
+        borderRadius: '32px', boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.7)",
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        animation: "modalShow 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
+        display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative'
+      }}>
+        
+        {/* Header Section */}
+        <div style={{
+          padding: '24px 24px 16px',
+          background: `linear-gradient(to bottom, ${c.bg}15, transparent)`,
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+        }}>
+          <button onClick={onBack} style={{
+            background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)",
+            borderRadius: "14px", color: "#fff", width: 40, height: 40,
+            fontSize: 20, cursor: "pointer", display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'background 0.2s'
+          }}>✕</button>
+          
+          <div style={{ textAlign: 'right' }}>
+            <h2 style={{ color: "#fff", margin: 0, fontSize: 24, fontWeight: 900 }}>{subject?.label} {subject?.emoji}</h2>
+            <p style={{ color: "rgba(255,255,255,0.5)", margin: '4px 0 0', fontSize: 13 }}>لیست فصل‌های آموزشی</p>
+          </div>
+        </div>
+
+        {/* Content Section */}
+        <div className="custom-scrollbar" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+          
+          {pdfUrl && (
+            <a href={pdfUrl} target="_blank" rel="noreferrer" style={{
+              background: 'linear-gradient(135deg, #FFD700, #FFA500)',
+              borderRadius: '20px', padding: '18px', color: '#000',
+              textDecoration: 'none', textAlign: 'center', fontWeight: '900', fontSize: 16,
+              boxShadow: '0 4px 15px rgba(255, 215, 0, 0.3)',
+              marginBottom: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+              direction: 'rtl', transition: 'transform 0.2s'
+            }} className="action-btn">
+              <span style={{ fontSize: 22 }}>📄</span>
+              مشاهده کامل فایل کتاب درسی (PDF)
+            </a>
+          )}
+
+          {loading ? (
+            <div style={{ padding: '40px 0', textAlign: 'center' }}>
+              <div style={{
+                width: 40, height: 40, border: '4px solid rgba(255,255,255,0.1)',
+                borderTopColor: c.bg, borderRadius: '50%',
+                display: 'inline-block', animation: 'spin 1s linear infinite'
+              }}></div>
+              <p style={{ color: '#aaa', marginTop: 16 }}>در حال بارگذاری فصل‌ها...</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {chapters.length === 0 && !pdfUrl && (
+                <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(255,255,255,0.02)', borderRadius: 24 }}>
+                  <div style={{ fontSize: 40, marginBottom: 16 }}>📭</div>
+                  <p style={{ color: '#777', margin: 0 }}>هنوز فصلی برای این درس ثبت نشده است.</p>
+                </div>
+              )}
+
+              {chapters.map((ch, idx) => {
+                const prog = getProgress(ch._id);
+                return (
+                  <div key={ch._id} className="chapter-card" style={{
+                    background: 'rgba(255,255,255,0.04)', borderRadius: '24px',
+                    padding: '16px', border: '1px solid rgba(255,255,255,0.06)',
+                    display: 'flex', flexDirection: 'column', gap: 16, direction: 'rtl'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                      <div style={{
+                        width: 36, height: 36, borderRadius: '12px',
+                        background: prog.completed ? '#27AE60' : 'rgba(255,255,255,0.08)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 14, fontWeight: 'bold', color: '#fff'
+                      }}>
+                        {prog.completed ? '✓' : idx + 1}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, marginBottom: 2 }}>فصـل {ch.chapter}</div>
+                        <div style={{ color: '#fff', fontSize: 16, fontWeight: 700 }}>{ch.title}</div>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: 10 }}>
+                      <button onClick={() => onStudy(ch._id)} style={{
+                        background: prog.read ? 'rgba(78, 205, 196, 0.15)' : 'rgba(255,255,255,0.06)',
+                        border: prog.read ? '1px solid #4ECDC444' : '1px solid rgba(255,255,255,0.1)',
+                        padding: '12px', borderRadius: '16px', color: prog.read ? '#4ECDC4' : '#fff',
+                        fontWeight: '700', cursor: 'pointer', flex: 1, fontSize: 14,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
+                      }} className="action-btn">
+                        {prog.read ? 'بازخوانی' : 'مطالعه درس'}
+                        {prog.read && <span style={{fontSize: 12}}>✅</span>}
+                      </button>
+                      
+                      <button onClick={() => onPlay(ch._id)} style={{
+                        background: prog.completed ? 'rgba(255, 107, 107, 0.15)' : 'linear-gradient(135deg, #FF6B6B, #EE5253)',
+                        border: prog.completed ? '1px solid #FF6B6B44' : 'none',
+                        padding: '12px', borderRadius: '16px', color: prog.completed ? '#FF6B6B' : '#fff',
+                        fontWeight: '800', cursor: 'pointer', flex: 1, fontSize: 14,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        boxShadow: prog.completed ? 'none' : '0 4px 12px rgba(255, 107, 107, 0.2)'
+                      }} className="action-btn">
+                        {prog.completed ? 'انجام دوباره' : 'شروع ماموریت'}
+                        {prog.completed && <span style={{fontSize: 12}}>🏆</span>}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Footer info */}
+        <div style={{
+          padding: '12px 24px', background: 'rgba(0,0,0,0.2)',
+          borderTop: '1px solid rgba(255,255,255,0.05)',
+          display: 'flex', justifyContent: 'center'
+        }}>
+          <div style={{ display: 'flex', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ECDC4' }}></div>
+              <span style={{ color: '#555', fontSize: 11 }}>مطالعه شده</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#FF6B6B' }}></div>
+              <span style={{ color: '#555', fontSize: 11 }}>ماموریت کامل</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── STUDY SCREEN ─────────────────────────────────────────────────────────
+function StudyScreen({ subject, lesson, onBack, onPlay }) {
+  const c = subject?.color || COLORS.persian;
+
+  const playAudio = (text) => {
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'fa-IR';
+      window.speechSynthesis.speak(utterance);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  const content = lesson?.content || "محتوایی یافت نشد.";
+
+  return (
+    <div style={{
+      minHeight: "100vh", background: `linear-gradient(160deg, ${c.dark} 0%, #1a1a2e 100%)`,
+      fontFamily: "'Vazirmatn','Segoe UI',sans-serif", padding: "24px 20px",
+      display: "flex", flexDirection: "column", alignItems: "center",
+    }}>
+      <style>{`
+        @keyframes slideUp { 0%{transform:translateY(30px);opacity:0} 100%{transform:translateY(0);opacity:1} }
+      `}</style>
+
+      <div style={{ width: '100%', maxWidth: 480, display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: "#ccc", fontSize: 18, cursor: "pointer" }}>← بازگشت</button>
+        <div style={{ color: "#FFD700", fontWeight: "bold", fontSize: 16 }}>{subject?.label} 📖</div>
+      </div>
+
+      <div style={{
+        width: "100%", maxWidth: 480, background: "rgba(255,255,255,0.05)", boxSizing: 'border-box',
+        border: "1px solid rgba(255,255,255,0.1)", borderRadius: 24, padding: "24px",
+        boxShadow: "0 10px 30px rgba(0,0,0,0.5)", animation: "slideUp 0.5s ease-out",
+        position: 'relative'
+      }}>
+        <button onClick={() => playAudio(content)} style={{
+          background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+          width: 44, height: 44, color: '#4ECDC4', cursor: 'pointer', fontSize: 20,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16
+        }} title="پخش صوتی">🔊</button>
+
+        <h3 style={{ color: '#fff', fontSize: 22, marginTop: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 10 }}>{lesson?.title || 'آموزش'}</h3>
+        <div style={{
+          color: '#e0e0e0', fontSize: 18, lineHeight: 2, textAlign: 'justify',
+          whiteSpace: 'pre-line', textShadow: '0 1px 2px rgba(0,0,0,0.5)'
+        }}>
+          {content}
+        </div>
+      </div>
+
+      <button onClick={onPlay} style={{
+        marginTop: 24, width: "100%", maxWidth: 480, padding: "18px", boxSizing: 'border-box',
+        background: `linear-gradient(135deg, ${c.bg}, ${c.dark})`,
+        border: "none", borderRadius: 20, color: "#fff",
+        fontSize: 18, fontWeight: 900, cursor: "pointer",
+        boxShadow: `0 8px 24px ${c.bg}44`, animation: "slideUp 0.6s ease-out"
+      }}>
+        حالا بریم ماموریت رو انجام بدیم! 🚀
+      </button>
     </div>
   );
 }

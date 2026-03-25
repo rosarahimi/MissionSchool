@@ -5,6 +5,7 @@ const morgan = require('morgan');
 const cookieParser = require('cookie-parser');
 const dotenv = require('dotenv');
 const mongoose = require('mongoose');
+const path = require('path');
 
 dotenv.config();
 
@@ -27,16 +28,20 @@ const corsOptions = {
 // Middleware
 app.use(express.json());
 app.use(cors(corsOptions));
-app.use(helmet());
+// Use crossOriginResourcePolicy({ policy: "cross-origin" }) with Helmet to allow displaying PDFs in iframes/objects
+app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));
 app.use(morgan('dev'));
 app.use(cookieParser());
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 
 // Routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user'); // new
+const lessonRoutes = require('./routes/lesson'); // new
 
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes); // new
+app.use('/api/lessons', lessonRoutes); // new
 
 app.get('/', (req, res) => {
   res.send('Mission School API is running...');

@@ -4,6 +4,7 @@ const bcrypt = require('bcrypt');
 const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
+  name: { type: String, default: '' },
   scores: [{
     subject: String,
     score: Number,
@@ -11,6 +12,11 @@ const userSchema = new mongoose.Schema({
     date: { type: Date, default: Date.now }
   }],
   badges: [String],
+  lessonProgress: [{
+    lessonId: { type: mongoose.Schema.Types.ObjectId, ref: 'Lesson' },
+    read: { type: Boolean, default: false },
+    completed: { type: Boolean, default: false }
+  }],
   createdAt: { type: Date, default: Date.now }
 });
 
