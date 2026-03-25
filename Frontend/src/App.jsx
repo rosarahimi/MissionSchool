@@ -404,6 +404,7 @@ function StarBurst({ count }) {
 export default function App() {
   const [screen, setScreen] = useState(localStorage.getItem('token') ? 'home' : 'login'); // home | upload | game | summary | hall | login
   const [hallTab, setHallTab] = useState('badges');
+  const [hallSubject, setHallSubject] = useState(null);
   const [uploadedText, setUploadedText] = useState("");
   const [uploadSubject, setUploadSubject] = useState("persian");
   const [loading, setLoading] = useState(false);
@@ -428,6 +429,7 @@ export default function App() {
   const [timerActive, setTimerActive] = useState(false);
   const [completedSubjects, setCompletedSubjects] = useState([]);
   const [showStageComplete, setShowStageComplete] = useState(false);
+  const [missionHistory, setMissionHistory] = useState([]); // Array of {question, correct, userAnswer, correctAnswer}
   const [photoFile, setPhotoFile] = useState(null);
   const fileRef = useRef();
   const timerRef = useRef();
@@ -436,23 +438,24 @@ export default function App() {
   const [user, setUser] = useState(null);
   const [authMode, setAuthMode] = useState('login'); // login | register
 
-  // Fetch user profile on mount or token change
   useEffect(() => {
     if (token) {
       api.getProfile(token).then(data => {
         if (data.email) {
           setUser(data);
-          // Sync local state with server state
+          
+          // Use student data for stats if current user is a parent
+          const sourceData = data.role === 'parent' && data.linkedStudent ? data.linkedStudent : data;
+          
           const serverStats = {
-            totalStars: data.scores.reduce((acc, curr) => acc + (curr.stars || 0), 0),
-            completedLessons: new Set(data.scores.map(s => s.subject)).size,
-            // (Assuming more logic here for other stats)
-            fastAnswers: data.fastAnswers || 0,
-            perfectStages: data.perfectStages || 0,
+            totalStars: sourceData.scores?.reduce((acc, curr) => acc + (curr.stars || 0), 0) || 0,
+            completedLessons: new Set(sourceData.scores?.map(s => s.subject) || []).size,
+            fastAnswers: sourceData.fastAnswers || 0,
+            perfectStages: sourceData.perfectStages || 0,
           };
           setGameStats(prev => ({ ...prev, ...serverStats }));
-          setEarnedBadges(data.badges || []);
-          setCompletedSubjects([...new Set(data.scores.map(s => s.subject))]);
+          setEarnedBadges(sourceData.badges || []);
+          setCompletedSubjects([...new Set(sourceData.scores?.map(s => s.subject) || [])]);
         } else {
           setToken(null);
           localStorage.removeItem('token');
@@ -488,8 +491,8 @@ export default function App() {
     }
   };
 
-  const handleRegister = async (email, password) => {
-    const res = await api.register(email, password);
+  const handleRegister = async (registrationData) => {
+    const res = await api.register(registrationData);
     if (res.message !== 'User registered successfully') {
       throw new Error(res.error || 'خطا در ثبت‌نام');
     }
@@ -524,6 +527,7 @@ export default function App() {
     setStars(0);
     setFeedback(null);
     setStageResults({ correct: 0, total: 0 });
+    setMissionHistory([]);
     initMission(ms[0]);
     setScreen("game");
   }
@@ -558,6 +562,12 @@ export default function App() {
     setStars(s => s + starEarned);
     setScore(s => s + (correct ? (wasfast ? 150 : 100) : 0));
     setStageResults(r => ({ correct: r.correct + (correct ? 1 : 0), total: r.total + 1 }));
+    setMissionHistory(prev => [...prev, {
+      question: m.q,
+      correct,
+      userAnswer: m.type === 'mcq' ? (timeout ? 'بی‌پاسخ' : (m.options[value] || value)) : (value || 'بی‌پاسخ'),
+      correctAnswer: m.type === 'mcq' ? m.options[m.answer] : (m.blank || m.answer)
+    }]);
     if (correct && wasfast) setGameStats(g => ({ ...g, fastAnswers: g.fastAnswers + 1 }));
     setFeedback({ correct, exp: m.exp, stars: starEarned, timeout });
   }
@@ -583,7 +593,8 @@ export default function App() {
         api.updateProgress(token, {
           subject: activeSubject,
           score: score,
-          stars: stars + (feedback?.stars || 0)
+          stars: stars + (feedback?.stars || 0),
+          detailedResults: missionHistory
         });
         if (activeLessonId) {
           api.updateLessonProgress(token, activeLessonId, 'completed').then(res => {
@@ -696,8 +707,9 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
         completedSubjects={completedSubjects}
         gameStats={gameStats}
         earnedBadges={earnedBadges}
-        onHall={(targetTab) => {
+        onHall={(targetTab, sId = null) => {
           setHallTab(targetTab || 'badges');
+          setHallSubject(sId);
           setScreen("hall");
         }}
         user={user}
@@ -736,6 +748,7 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
       {screen === "hall" && (
         <BadgeHall
           initialTab={hallTab}
+          initialSubject={hallSubject}
           user={user}
           setUser={setUser}
           token={token}
@@ -744,6 +757,8 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
           completedSubjects={completedSubjects}
           onBack={() => setScreen("home")}
           onLogout={logout}
+          api={api}
+          SUBJECTS={SUBJECTS}
         />
       )}
     </>
@@ -831,10 +846,10 @@ function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBad
 
             <div style={{ display: 'flex', flexDirection: 'column', direction: 'ltr', textAlign: 'left', paddingRight: '4px', gap: '2px' }}>
               <span style={{ fontSize: '14px', fontWeight: '800', color: '#fff', whiteSpace: 'nowrap', textShadow: '0 1px 2px rgba(0,0,0,0.3)', lineHeight: 1.2 }}>
-                {user?.name || user?.email?.split('@')[0] || 'Student'}
+                {user?.role === 'parent' ? (user?.linkedStudent?.name || user?.linkedStudent?.email?.split('@')[0]) : (user?.name || user?.email?.split('@')[0]) || 'Student'}
               </span>
               <span style={{ fontSize: '10px', color: '#FFD700', fontWeight: 'bold', background: 'rgba(255,215,0,0.15)', padding: '1px 6px', borderRadius: '8px', whiteSpace: 'nowrap', width: 'fit-content' }}>
-                GRADE 3
+                {user?.role === 'parent' ? 'PARENT VIEW' : `GRADE ${user?.grade || 3}`}
               </span>
             </div>
           </div>
@@ -892,8 +907,12 @@ function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBad
           background: "linear-gradient(90deg,#FFD700,#FF6B6B,#4ECDC4,#45B7D1)",
           backgroundSize: "200%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
           animation: "shimmer 3s linear infinite",
-        }}>یادگیری ماجراجویانه!</h1>
-        <p style={{ color: "#aaa", fontSize: 15, direction: "rtl" }}>هر درس یک ماموریت جدید 🌟</p>
+        }}>
+          {user?.role === 'parent' ? `گزارش پیشرفت ${user?.linkedStudent?.name || 'دانش‌آموز'}` : 'یادگیری ماجراجویانه!'}
+        </h1>
+        <p style={{ color: "#aaa", fontSize: 15, direction: "rtl" }}>
+          {user?.role === 'parent' ? 'نظارت بر ماموریت‌های انجام شده 🌟' : 'هر درس یک ماموریت جدید 🌟'}
+        </p>
       </div>
 
 
@@ -907,7 +926,13 @@ function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBad
         {SUBJECTS.map((s, i) => {
           const done = completedSubjects.includes(s.id);
           return (
-            <button key={s.id} className="subject-card" onClick={() => onStart(s.id)} style={{
+            <button key={s.id} className="subject-card" onClick={() => {
+              if (user?.role === 'parent') {
+                onHall('results', s.id);
+              } else {
+                onStart(s.id);
+              }
+            }} style={{
               background: done
                 ? `linear-gradient(135deg,${s.color.bg}cc,${s.color.dark})`
                 : `linear-gradient(135deg,${s.color.bg},${s.color.dark})`,
@@ -1564,10 +1589,34 @@ function SummaryScreen({ subject, stars, score, missions, onHome, completedSubje
 }
 
 // ─── BADGE HALL ───────────────────────────────────────────────────────────
-function BadgeHall({ initialTab, user, setUser, token, earnedBadges, gameStats, completedSubjects, onBack, onLogout }) {
-  const [tab, setTab] = useState(initialTab || 'badges'); // 'badges' | 'profile'
+function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBadges, gameStats, completedSubjects, onBack, onLogout, api, SUBJECTS }) {
+  const [tab, setTab] = useState(initialTab || 'badges'); // 'badges' | 'profile' | 'results'
   const [editName, setEditName] = useState(user?.name || '');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [detailedResults, setDetailedResults] = useState([]);
+  const [isLoadingResults, setIsLoadingResults] = useState(false);
+  const [filterSubject, setFilterSubject] = useState(initialSubject || null);
+  
+  useEffect(() => {
+    if (initialTab === 'results') {
+      fetchDetailedResults(initialSubject || null);
+    }
+  }, [initialTab, initialSubject]);
+
+  const fetchDetailedResults = async (sId = null) => {
+    if (!token || (user?.role !== 'parent' && user?.role !== 'student')) return;
+    setIsLoadingResults(true);
+    setFilterSubject(sId);
+    try {
+      const data = await api.getDetailedResults(token);
+      setDetailedResults(data || []);
+      setTab('results');
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingResults(false);
+    }
+  };
 
   const handleUpdateName = async () => {
     if (!token) return;
@@ -1611,6 +1660,9 @@ function BadgeHall({ initialTab, user, setUser, token, earnedBadges, gameStats, 
         animation: "scaleUp 0.3s ease-out forwards",
         display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative'
       }}>
+        <style>{`
+          .results-filter:hover { transform: translateY(-2px); filter: brightness(1.2); }
+        `}</style>
         
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 20 }}>
           <button onClick={onBack} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "50%", color: "#fff", width: 40, height: 40, fontSize: 18, cursor: "pointer", display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
@@ -1621,15 +1673,26 @@ function BadgeHall({ initialTab, user, setUser, token, earnedBadges, gameStats, 
               color: tab === 'badges' ? '#FFD700' : '#888',
               border: tab === 'badges' ? '1px solid #FFD70066' : '1px solid transparent',
               borderRadius: 20, padding: '8px 16px', fontWeight: tab === 'badges' ? 800 : 600,
-              cursor: 'pointer', transition: 'all 0.2s', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6
-            }}>🏆 دستاوردها</button>
+              cursor: 'pointer', transition: 'all 0.2s', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6
+            }}>🏆 {user?.role === 'parent' ? 'خلاصه' : 'دستاوردها'}</button>
+            
+            {(user?.role === 'parent' || user?.role === 'student') && (
+              <button onClick={() => fetchDetailedResults(null)} style={{
+                background: tab === 'results' ? 'rgba(155,89,182,0.15)' : 'transparent',
+                color: tab === 'results' ? '#9B59B6' : '#888',
+                border: tab === 'results' ? '1px solid #9B59B666' : '1px solid transparent',
+                borderRadius: 20, padding: '8px 16px', fontWeight: tab === 'results' ? 800 : 600,
+                cursor: 'pointer', transition: 'all 0.2s', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6
+              }}>📝 گزارش عملکرد</button>
+            )}
+
             <button onClick={() => setTab('profile')} style={{
               background: tab === 'profile' ? 'rgba(78,205,196,0.15)' : 'transparent',
               color: tab === 'profile' ? '#4ECDC4' : '#888',
               border: tab === 'profile' ? '1px solid #4ECDC466' : '1px solid transparent',
               borderRadius: 20, padding: '8px 16px', fontWeight: tab === 'profile' ? 800 : 600,
-              cursor: 'pointer', transition: 'all 0.2s', fontSize: 14, display: 'flex', alignItems: 'center', gap: 6
-            }}>👤 پروفایل من</button>
+              cursor: 'pointer', transition: 'all 0.2s', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6
+            }}>{user?.role === 'parent' ? '👤 والدین' : '👤 پروفایل'}</button>
           </div>
         </div>
 
@@ -1641,7 +1704,7 @@ function BadgeHall({ initialTab, user, setUser, token, earnedBadges, gameStats, 
         background: "linear-gradient(90deg,#FFD700,#FF6B6B,#4ECDC4)",
         backgroundSize: "200%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
         animation: "shimmer 3s linear infinite", margin: "0 0 24px",
-      }}>🏅 تالار افتخار</h2>
+      }}>{user?.role === 'parent' ? '🎯 عملکرد فرزند شما' : '🏅 تالار افتخار'}</h2>
 
       {/* Stats */}
       <div style={{
@@ -1694,6 +1757,64 @@ function BadgeHall({ initialTab, user, setUser, token, earnedBadges, gameStats, 
         </div>
         )}
 
+        {tab === 'results' && (
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', animation: 'fadeSlide 0.4s both', direction: 'rtl' }}>
+             <h2 style={{
+              fontWeight: 900, fontSize: 22, color: '#fff', marginBottom: 20, textAlign: 'center'
+            }}>
+              {filterSubject 
+                ? `📝 گزارش ${SUBJECTS.find(s => s.id === filterSubject)?.label}` 
+                : '📝 گزارش کلی عملکرد'}
+            </h2>
+            
+            {isLoadingResults ? (
+               <div style={{ textAlign: 'center', padding: '40px' }}>
+                <div style={{ width: 30, height: 30, border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#9B59B6', borderRadius: '50%', display: 'inline-block', animation: 'spin 1s linear infinite' }}></div>
+               </div>
+            ) : detailedResults.length === 0 ? (
+              <p style={{ color: '#aaa', textAlign: 'center' }}>هنوز نتیجه‌ای ثبت نشده است.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                {[...detailedResults].reverse()
+                  .filter(session => !filterSubject || session.subject === filterSubject)
+                  .map((session, sIdx) => {
+                    const subj = SUBJECTS.find(s => s.id === session.subject);
+                    return (
+                      <div key={sIdx} style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 16, border: `1px solid ${subj?.color?.bg || 'rgba(255,255,255,0.1)'}33`, padding: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 8 }}>
+                          <span style={{ color: subj?.color?.bg || '#4ECDC4', fontWeight: 'bold' }}>📚 {subj?.label}</span>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                            <span style={{ color: '#aaa', fontSize: 11 }}>{new Date(session.date).toLocaleDateString('fa-IR')}</span>
+                            <span style={{ color: 'rgba(255,215,0,0.6)', fontSize: 11, background: 'rgba(255,215,0,0.1)', padding: '2px 6px', borderRadius: '6px' }}>
+                              🕒 {new Date(session.date).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          {session.detailedResults?.map((res, rIdx) => (
+                            <div key={rIdx} style={{ fontSize: 13, padding: '8px', background: res.correct ? 'rgba(39, 174, 96, 0.05)' : 'rgba(231, 76, 60, 0.05)', borderRadius: 8 }}>
+                              <p style={{ color: '#fff', margin: '0 0 4px 0' }}>❓ {res.question}</p>
+                              <div style={{ display: 'flex', gap: 10, fontSize: 11 }}>
+                                {res.correct ? (
+                                  <span style={{ color: '#27AE60', fontWeight: 'bold' }}>✅ {res.correctAnswer}</span>
+                                ) : (
+                                  <>
+                                    <span style={{ color: '#E74C3C' }}>❌ پاسخ فرزند: {res.userAnswer}</span>
+                                    <span style={{ color: '#aaa' }}>- پاسخ صحیح: {res.correctAnswer}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {tab === 'profile' && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'fadeSlide 0.4s both', direction: 'rtl', padding: '10px 0 20px' }}>
             <div style={{
@@ -1710,7 +1831,7 @@ function BadgeHall({ initialTab, user, setUser, token, earnedBadges, gameStats, 
             
             <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 20, width: '100%', maxWidth: 360, marginBottom: 24 }}>
               <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', color: '#aaa', fontSize: 13, marginBottom: 8, marginRight: 5 }}>نام و نام خانوادگی:</label>
+                <label style={{ display: 'block', color: '#aaa', fontSize: 13, marginBottom: 8, marginRight: 5 }}>نام نمایشی:</label>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <input 
                     type="text" 
@@ -1737,15 +1858,59 @@ function BadgeHall({ initialTab, user, setUser, token, earnedBadges, gameStats, 
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
-                <span style={{ color: '#aaa', fontSize: 14 }}>ایمیل:</span>
+                <span style={{ color: '#aaa', fontSize: 14 }}>ایمیل شما:</span>
                 <span style={{ color: '#fff', fontSize: 14, fontWeight: 'bold', direction: 'ltr' }}>{user?.email || 'نامشخص'}</span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
-                <span style={{ color: '#aaa', fontSize: 14 }}>پایه تحصیلی:</span>
-                <span style={{ color: '#4ECDC4', fontSize: 14, fontWeight: 'bold', background: 'rgba(78,205,196,0.1)', padding: '4px 10px', borderRadius: 8 }}>گرید ۳ (سوم دبستان)</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#aaa', fontSize: 14 }}>وضعیت ماموریت‌ها:</span>
+              
+              {user?.role === 'parent' && user?.linkedStudent && (
+                <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 16 }}>
+                  <p style={{ color: '#4ECDC4', fontSize: 13, fontWeight: 'bold', marginBottom: 12 }}>🔗 اکانت لینک شده (فرزند):</p>
+                  <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ color: '#aaa', fontSize: 12 }}>نام دانش‌آموز:</span>
+                      <span style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>{user.linkedStudent.name || 'بدون نام'}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ color: '#aaa', fontSize: 12 }}>ایمیل:</span>
+                      <span style={{ color: '#fff', fontSize: 13, direction: 'ltr' }}>{user.linkedStudent.email}</span>
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span style={{ color: '#aaa', fontSize: 12 }}>پایه تحصیلی:</span>
+                      <span style={{ color: '#FFD700', fontSize: 13 }}>کلاس {user.linkedStudent.grade}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {user?.role === 'student' && (
+                <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 16 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
+                    <span style={{ color: '#aaa', fontSize: 14 }}>پایه تحصیلی:</span>
+                    <span style={{ color: '#4ECDC4', fontSize: 14, fontWeight: 'bold', background: 'rgba(78,205,196,0.1)', padding: '4px 10px', borderRadius: 8 }}>کلاس {user.grade} (دبستان)</span>
+                  </div>
+                  
+                  {user?.linkedParent ? (
+                    <div style={{ background: 'rgba(39, 174, 96, 0.1)', borderRadius: 12, padding: 12, border: '1px solid rgba(39, 174, 96, 0.3)' }}>
+                      <p style={{ color: '#27AE60', fontSize: 13, fontWeight: 'bold', marginBottom: 12 }}>🔗 اکانت والد لینک شده:</p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
+                        <span style={{ color: '#aaa', fontSize: 12 }}>نام والد:</span>
+                        <span style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>{user.linkedParent.name || 'بدون نام'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#aaa', fontSize: 12 }}>ایمیل والد:</span>
+                        <span style={{ color: '#fff', fontSize: 13, direction: 'ltr' }}>{user.linkedParent.email}</span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div style={{ background: 'rgba(231, 76, 60, 0.1)', borderRadius: 12, padding: 12, border: '1px solid rgba(231, 76, 60, 0.3)' }}>
+                      <p style={{ color: '#E74C3C', fontSize: 13, fontWeight: 'bold', margin: 0 }}>⚠️ اکانت والد به شما متصل نیست</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
+                <span style={{ color: '#aaa', fontSize: 14 }}>{user?.role === 'parent' ? 'وضعیت کل فرزند:' : 'وضعیت ماموریت‌ها:'}</span>
                 <span style={{ color: '#FFD700', fontSize: 14, fontWeight: 'bold' }}>{completedSubjects.length} درس کامل شده</span>
               </div>
             </div>
@@ -1825,17 +1990,6 @@ function ChaptersScreen({ subject, token, onBack, onStudy, onPlay, userProgress 
         .action-btn:active {
           transform: scale(0.98);
         }
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: rgba(255,255,255,0.05);
-          border-radius: 10px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.2);
-          border-radius: 10px;
-        }
       `}</style>
       
       <div onClick={(e) => e.stopPropagation()} style={{
@@ -1868,7 +2022,7 @@ function ChaptersScreen({ subject, token, onBack, onStudy, onPlay, userProgress 
         </div>
 
         {/* Content Section */}
-        <div className="custom-scrollbar" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
+        <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
           
           {pdfUrl && (
             <a href={pdfUrl} target="_blank" rel="noreferrer" style={{
@@ -2054,6 +2208,10 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
 function AuthScreen({ mode, setMode, onLogin, onRegister }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [role, setRole] = useState('student'); // student | parent | teacher
+  const [grade, setGrade] = useState(3);
+  const [studentEmail, setStudentEmail] = useState('');
+  const [studentPassword, setStudentPassword] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -2067,10 +2225,17 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
       if (mode === 'login') {
         await onLogin(email, password);
       } else {
-        await onRegister(email, password);
+        const regData = { email, password, role, grade };
+        if (role === 'parent') {
+          regData.studentEmail = studentEmail;
+          regData.studentPassword = studentPassword;
+        }
+        await onRegister(regData);
         setSuccess('ثبت‌نام موفق! حالا می‌توانید وارد شوید.');
         setEmail('');
         setPassword('');
+        setStudentEmail('');
+        setStudentPassword('');
       }
     } catch (err) {
       setError(err.message || 'خطایی رخ داد. دوباره تلاش کنید.');
@@ -2212,20 +2377,109 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
               onChange={(e) => setPassword(e.target.value)}
               className="input-focus"
               style={{
-                width: "100%",
-                padding: "16px",
-                borderRadius: "16px",
+                width: "100%", padding: "16px", borderRadius: "16px",
                 border: "1.5px solid rgba(255, 255, 255, 0.1)",
-                background: "rgba(0, 0, 0, 0.2)",
-                color: "#fff",
-                fontSize: "15px",
-                transition: "all 0.3s ease",
-                boxSizing: "border-box",
-                outline: 'none'
+                background: "rgba(0, 0, 0, 0.2)", color: "#fff",
+                fontSize: "15px", transition: "all 0.3s ease",
+                boxSizing: "border-box", outline: 'none'
               }}
               required
             />
           </div>
+
+          {mode === 'register' && (
+            <>
+              <div style={{ textAlign: 'right' }}>
+                <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: '5px' }}>نقش کاربر</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                  {[
+                    { id: 'student', label: 'دانش‌آموز' },
+                    { id: 'parent', label: 'والدین' },
+                    { id: 'teacher', label: 'معلم' }
+                  ].map(r => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setRole(r.id)}
+                      style={{
+                        padding: '10px 4px', borderRadius: '12px', fontSize: '13px', fontWeight: 'bold',
+                        cursor: 'pointer', transition: 'all 0.2s',
+                        background: role === r.id ? 'rgba(78, 205, 196, 0.2)' : 'rgba(255,255,255,0.05)',
+                        border: `1.5px solid ${role === r.id ? '#4ECDC4' : 'transparent'}`,
+                        color: role === r.id ? '#4ECDC4' : '#888'
+                      }}
+                    >{r.label}</button>
+                  ))}
+                </div>
+              </div>
+
+              {role === 'student' && (
+                <div style={{ textAlign: 'right', animation: 'fadeSlideUp 0.3s both' }}>
+                  <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: '5px' }}>پایه تحصیلی</label>
+                  <select
+                    value={grade}
+                    onChange={(e) => setGrade(Number(e.target.value))}
+                    style={{
+                      width: "100%", padding: "16px", borderRadius: "16px",
+                      border: "1.5px solid rgba(255, 255, 255, 0.1)",
+                      background: "rgba(0, 0, 0, 0.2)", color: "#fff",
+                      fontSize: "15px", outline: 'none', cursor: 'pointer', appearance: 'none'
+                    }}
+                  >
+                    {[1, 2, 3, 4, 5, 6].map(g => (
+                      <option key={g} value={g} style={{ background: '#1a1a2e' }}>کلاس {g} (دبستان)</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {role === 'parent' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', animation: 'fadeSlideUp 0.3s both' }}>
+                  <div style={{ padding: '12px', background: 'rgba(78, 205, 196, 0.05)', borderRadius: '14px', border: '1px dashed rgba(78, 205, 196, 0.3)', marginBottom: '4px' }}>
+                    <p style={{ color: '#4ECDC4', fontSize: '12px', margin: 0, textAlign: 'center' }}>اطلاعات دانش‌آموز خود را برای لینک شدن وارد کنید</p>
+                  </div>
+                  
+                  <div style={{ textAlign: 'right' }}>
+                    <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: '5px' }}>ایمیل دانش‌آموز</label>
+                    <input
+                      type="email"
+                      placeholder="student@mail.com"
+                      value={studentEmail}
+                      onChange={(e) => setStudentEmail(e.target.value)}
+                      className="input-focus"
+                      style={{
+                        width: "100%", padding: "16px", borderRadius: "16px",
+                        border: "1.5px solid rgba(255, 255, 255, 0.1)",
+                        background: "rgba(0, 0, 0, 0.2)", color: "#fff",
+                        fontSize: "15px", transition: "all 0.3s ease",
+                        boxSizing: "border-box", outline: 'none'
+                      }}
+                      required
+                    />
+                  </div>
+
+                  <div style={{ textAlign: 'right' }}>
+                    <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: '5px' }}>رمز عبور دانش‌آموز</label>
+                    <input
+                      type="password"
+                      placeholder="••••••••"
+                      value={studentPassword}
+                      onChange={(e) => setStudentPassword(e.target.value)}
+                      className="input-focus"
+                      style={{
+                        width: "100%", padding: "16px", borderRadius: "16px",
+                        border: "1.5px solid rgba(255, 255, 255, 0.1)",
+                        background: "rgba(0, 0, 0, 0.2)", color: "#fff",
+                        fontSize: "15px", transition: "all 0.3s ease",
+                        boxSizing: "border-box", outline: 'none'
+                      }}
+                      required
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
 
           <button type="submit" disabled={isLoading} style={{
             background: "linear-gradient(90deg, #FF6B6B 0%, #4ECDC4 100%)",

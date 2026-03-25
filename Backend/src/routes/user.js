@@ -6,8 +6,25 @@ const User = require('../models/User');
 // Get user profile/history
 router.get('/profile', auth, async (req, res) => {
   try {
-    const user = await User.findById(req.user.id).select('-password');
-    res.json(user);
+    const user = await User.findById(req.user.id)
+      .select('-password')
+      .populate('linkedStudent', '-password');
+    
+    const userObj = user.toObject();
+    
+    // If student, find the parent linked to them
+    if (user.role === 'student') {
+      const parent = await User.findOne({ 
+        role: 'parent', 
+        linkedStudent: user._id 
+      }).select('email name');
+      
+      if (parent) {
+        userObj.linkedParent = parent;
+      }
+    }
+    
+    res.json(userObj);
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }
@@ -36,7 +53,12 @@ router.post('/progress', auth, async (req, res) => {
     const user = await User.findById(req.user.id);
 
     if (subject) {
-      user.scores.push({ subject, score, stars });
+      user.scores.push({ 
+        subject, 
+        score, 
+        stars, 
+        detailedResults: req.body.detailedResults || [] 
+      });
     }
 
     if (badge && !user.badges.includes(badge)) {
@@ -45,6 +67,26 @@ router.post('/progress', auth, async (req, res) => {
 
     await user.save();
     res.json(user);
+  } catch (err) {
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Get results (detailed performance)
+router.get('/results', auth, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    
+    if (user.role === 'parent' && user.linkedStudent) {
+      // Parent viewing linked student's results
+      const student = await User.findById(user.linkedStudent).select('scores name email');
+      return res.json(student.scores);
+    } else if (user.role === 'student') {
+      // Student viewing their own results
+      return res.json(user.scores);
+    } else {
+      return res.status(403).json({ message: 'دسترسی غیرمجاز' });
+    }
   } catch (err) {
     res.status(500).json({ message: 'Server error' });
   }

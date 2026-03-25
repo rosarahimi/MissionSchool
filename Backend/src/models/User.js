@@ -5,11 +5,20 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   name: { type: String, default: '' },
+  role: { type: String, enum: ['student', 'parent', 'teacher'], default: 'student' },
+  grade: { type: Number, default: 3 }, // Added grade for students
+  linkedStudent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // For parents to link to student
   scores: [{
     subject: String,
     score: Number,
     stars: Number,
-    date: { type: Date, default: Date.now }
+    date: { type: Date, default: Date.now },
+    detailedResults: [{
+      question: String,
+      correct: Boolean,
+      userAnswer: String,
+      correctAnswer: String
+    }]
   }],
   badges: [String],
   lessonProgress: [{

@@ -9,11 +9,11 @@ export const login = async (email, password) => {
   return res.json();
 };
 
-export const register = async (email, password) => {
+export const register = async (userData) => {
   const res = await fetch(`${API_URL}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify(userData),
   });
   return res.json();
 };
@@ -87,6 +87,12 @@ export const uploadPdf = async (token, formData) => {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${token}` },
     body: formData, // FormData doesn't need Content-Type header manually
+  });
+  return res.json();
+};
+export const getDetailedResults = async (token) => {
+  const res = await fetch(`${API_URL}/user/results`, {
+    headers: { 'Authorization': `Bearer ${token}` },
   });
   return res.json();
 };

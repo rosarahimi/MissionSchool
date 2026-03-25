@@ -8,8 +8,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 // ── Register ────────────────────────────────────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
-    const { email, password } = req.body;
-
+    const { email, password, role, grade, studentEmail, studentPassword } = req.body;
+    
     if (!email || !password) {
       return res.status(400).json({ error: 'ایمیل و رمز عبور الزامی هستند.' });
     }
@@ -22,7 +22,42 @@ router.post('/register', async (req, res) => {
       return res.status(409).json({ error: 'این ایمیل قبلاً ثبت‌نام شده است.' });
     }
 
-    const user = new User({ email, password });
+    let linkedStudentId = null;
+
+    if (role === 'parent') {
+      if (!studentEmail || !studentPassword) {
+        return res.status(400).json({ error: 'ایمیل و رمز عبور دانش‌آموز الزامی است.' });
+      }
+
+      let student = await User.findOne({ email: studentEmail });
+      
+      if (student) {
+        // Student exists, check password
+        const isMatch = await student.comparePassword(studentPassword);
+        if (!isMatch) {
+          return res.status(401).json({ error: 'رمز عبور دانش‌آموز اشتباه است.' });
+        }
+        linkedStudentId = student._id;
+      } else {
+        // Student doesn't exist, create student account first
+        const newStudent = new User({
+          email: studentEmail,
+          password: studentPassword,
+          role: 'student',
+          grade: grade || 3
+        });
+        await newStudent.save();
+        linkedStudentId = newStudent._id;
+      }
+    }
+
+    const user = new User({ 
+      email, 
+      password, 
+      role: role || 'student', 
+      grade: grade || 3,
+      linkedStudent: linkedStudentId
+    });
     await user.save();
     res.status(201).json({ message: 'User registered successfully' });
   } catch (error) {
