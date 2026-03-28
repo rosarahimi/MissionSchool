@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const Lesson = require('../models/Lesson');
 const User = require('../models/User');
+const Course = require('../models/Course');
 const auth = require('../middleware/auth');
 const multer = require('multer');
 const path = require('path');
@@ -12,17 +13,26 @@ const { Readable } = require('stream');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// Upload PDF (Save directly to MongoDB via GridFS)
 router.post('/upload-pdf', auth, upload.single('pdf'), async (req, res) => {
   try {
     if (!req.file) throw new Error("فایلی ارسال نشده است.");
     const subject = req.body.subject || 'unknown';
+    const grade = req.body.grade ? Number(req.body.grade) : undefined;
+    const safeSubject = String(subject).toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const safeGrade = Number.isFinite(grade) ? String(grade) : null;
+    const pdfBaseName = safeGrade ? `${safeSubject}-${safeGrade}` : safeSubject;
+    const pdfFilename = `${pdfBaseName}.pdf`;
+
+    const tempDir = path.join(__dirname, '../../uploads/textbooks');
+    await fs.promises.mkdir(tempDir, { recursive: true });
+    const tempPath = path.join(tempDir, pdfFilename);
+    await fs.promises.writeFile(tempPath, req.file.buffer);
     
     const db = mongoose.connection.db;
     const bucket = new mongoose.mongo.GridFSBucket(db, { bucketName: 'textbooks' });
 
     // Find and delete existing textbook for this subject to replace it safely
-    const existing = await bucket.find({ filename: `${subject}.pdf` }).toArray();
+    const existing = await bucket.find({ filename: pdfFilename }).toArray();
     for (const file of existing) {
       await bucket.delete(file._id);
     }
@@ -32,9 +42,9 @@ router.post('/upload-pdf', auth, upload.single('pdf'), async (req, res) => {
     readableStream.push(req.file.buffer);
     readableStream.push(null);
 
-    const uploadStream = bucket.openUploadStream(`${subject}.pdf`, {
+    const uploadStream = bucket.openUploadStream(pdfFilename, {
       contentType: 'application/pdf',
-      metadata: { subject }
+      metadata: { subject, grade }
     });
 
     readableStream.pipe(uploadStream)
@@ -42,7 +52,28 @@ router.post('/upload-pdf', auth, upload.single('pdf'), async (req, res) => {
         res.status(500).json({ success: false, error: err.message });
       })
       .on('finish', () => {
-        res.json({ success: true, message: "فایل کتاب با موفقیت در دیتابیس آپلود شد." });
+        const courseTitle = safeSubject === 'persian'
+          ? `فارسی پایه ${safeGrade || ''}`.trim()
+          : `${safeSubject}${safeGrade ? ` grade ${safeGrade}` : ''}`.trim();
+        Course.findOneAndUpdate(
+          { grade: grade, subject: safeSubject },
+          {
+            $set: {
+              grade: grade,
+              subject: safeSubject,
+              title: courseTitle,
+              textbook: { bucketName: 'textbooks', filename: pdfFilename }
+            }
+          },
+          { upsert: true, new: true }
+        ).catch(() => {});
+
+        res.json({
+          success: true,
+          message: "فایل کتاب با موفقیت در دیتابیس آپلود شد.",
+          filename: pdfFilename,
+          tempUrl: `/uploads/textbooks/${pdfFilename}`,
+        });
       });
 
   } catch (err) {
@@ -50,18 +81,22 @@ router.post('/upload-pdf', auth, upload.single('pdf'), async (req, res) => {
   }
 });
 
-// Check if a textbook PDF exists for a subject in MongoDB
-router.get('/pdf-status/:subject', auth, async (req, res) => {
+router.get('/pdf-status/:subject/:grade?', auth, async (req, res) => {
   try {
     const subject = req.params.subject;
+    const grade = req.params.grade ? Number(req.params.grade) : (req.query.grade ? Number(req.query.grade) : undefined);
+    const safeSubject = String(subject).toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const safeGrade = Number.isFinite(grade) ? String(grade) : null;
+    const pdfBaseName = safeGrade ? `${safeSubject}-${safeGrade}` : safeSubject;
+    const pdfFilename = `${pdfBaseName}.pdf`;
     const db = mongoose.connection.db;
     if (!db) return res.json({ exists: false });
     
     const bucket = new mongoose.mongo.GridFSBucket(db, { bucketName: 'textbooks' });
-    const files = await bucket.find({ filename: `${subject}.pdf` }).toArray();
+    const files = await bucket.find({ filename: pdfFilename }).toArray();
     
     if (files && files.length > 0) {
-      res.json({ exists: true, url: `/api/lessons/pdf/${subject}` });
+      res.json({ exists: true, url: `/api/lessons/pdf/${safeSubject}${safeGrade ? `/${safeGrade}` : ''}` });
     } else {
       res.json({ exists: false });
     }
@@ -70,20 +105,24 @@ router.get('/pdf-status/:subject', auth, async (req, res) => {
   }
 });
 
-// Serve the PDF file straight from MongoDB (No auth required because browser opens it in a new tab)
-router.get('/pdf/:subject', async (req, res) => {
+router.get('/pdf/:subject/:grade?', async (req, res) => {
   try {
     const subject = req.params.subject;
+    const grade = req.params.grade ? Number(req.params.grade) : (req.query.grade ? Number(req.query.grade) : undefined);
+    const safeSubject = String(subject).toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    const safeGrade = Number.isFinite(grade) ? String(grade) : null;
+    const pdfBaseName = safeGrade ? `${safeSubject}-${safeGrade}` : safeSubject;
+    const pdfFilename = `${pdfBaseName}.pdf`;
     const db = mongoose.connection.db;
     const bucket = new mongoose.mongo.GridFSBucket(db, { bucketName: 'textbooks' });
 
-    const files = await bucket.find({ filename: `${subject}.pdf` }).toArray();
+    const files = await bucket.find({ filename: pdfFilename }).toArray();
     if (!files || files.length === 0) {
       return res.status(404).send('Textbook not found in database');
     }
 
     res.set('Content-Type', 'application/pdf');
-    bucket.openDownloadStreamByName(`${subject}.pdf`).pipe(res);
+    bucket.openDownloadStreamByName(pdfFilename).pipe(res);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

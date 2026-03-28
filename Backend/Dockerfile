@@ -1,6 +1,8 @@
 # Use Node.js LTS
 FROM node:20-alpine
 
+RUN apk add --no-cache poppler-utils tesseract-ocr tesseract-ocr-data-fas tesseract-ocr-data-eng
+
 # Set working directory
 WORKDIR /app
 

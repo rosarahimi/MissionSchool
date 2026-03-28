@@ -79,6 +79,178 @@ function LiveClock() {
   );
 }
 
+function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
+  const [grade, setGrade] = useState(3);
+  const [subject, setSubject] = useState('persian');
+  const [loading, setLoading] = useState(true);
+  const [busyKey, setBusyKey] = useState('');
+  const [status, setStatus] = useState(null);
+  const [lessons, setLessons] = useState([]);
+  const [selectedLessonId, setSelectedLessonId] = useState(null);
+  const [selectedLesson, setSelectedLesson] = useState(null);
+  const [editTitle, setEditTitle] = useState('');
+  const [editContent, setEditContent] = useState('');
+
+  const isTeacher = user?.role === 'teacher';
+
+  const loadStatus = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const s = await api.curriculumStatus(token, { grade, subject });
+      setStatus(s);
+    } finally {
+      setLoading(false);
+    }
+  }, [token, api, grade, subject]);
+
+  useEffect(() => {
+    loadStatus();
+  }, [loadStatus]);
+
+  async function loadLessonsForCourse(courseId) {
+    const list = await api.curriculumLessons(token, { courseId });
+    setLessons(Array.isArray(list) ? list : []);
+  }
+
+  async function openLesson(lessonId) {
+    setSelectedLessonId(lessonId);
+    const data = await api.getLessonDetails(token, lessonId);
+    setSelectedLesson(data);
+    setEditTitle(data?.title || '');
+    setEditContent(data?.content || '');
+  }
+
+  async function runExtract(course) {
+    setBusyKey('extract');
+    try {
+      const res = await api.extractTextbook(token, { grade: course.grade, subject: course.subject, ocrLang: 'fas' });
+      if (!res.success) alert(res.error || 'خطا در استخراج متن');
+      await loadStatus();
+    } finally {
+      setBusyKey('');
+    }
+  }
+
+  async function runBuild(course) {
+    setBusyKey('build');
+    try {
+      const res = await api.buildTextbook(token, { grade: course.grade, subject: course.subject, replaceExisting: true });
+      if (!res.success) alert(res.error || 'خطا در ساخت فصل‌ها');
+      await loadStatus();
+      if (res.courseId) await loadLessonsForCourse(res.courseId);
+    } finally {
+      setBusyKey('');
+    }
+  }
+
+  async function saveLesson() {
+    if (!selectedLessonId) return;
+    setBusyKey('save');
+    try {
+      const res = await api.updateLesson(token, selectedLessonId, { title: editTitle, content: editContent });
+      if (res.error) alert(res.error);
+      setSelectedLesson(res);
+      await loadStatus();
+      if (selectedLesson?.courseId) await loadLessonsForCourse(selectedLesson.courseId);
+    } finally {
+      setBusyKey('');
+    }
+  }
+
+  if (!isTeacher) {
+    return (
+      <div style={{ minHeight: '100vh', padding: 24, background: '#0f1220', color: '#fff', fontFamily: "'Vazirmatn','Segoe UI',sans-serif" }}>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>← برگشت</button>
+        <div style={{ marginTop: 20, direction: 'rtl' }}>دسترسی این بخش فقط برای معلم فعال است.</div>
+      </div>
+    );
+  }
+
+  const courses = status?.courses || [];
+  const course = courses[0];
+
+  return (
+    <div style={{ minHeight: '100vh', padding: 20, background: 'linear-gradient(135deg,#0f1220,#16213e)', color: '#fff', fontFamily: "'Vazirmatn','Segoe UI',sans-serif" }}>
+      <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>← برگشت</button>
+
+      <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <select value={grade} onChange={(e) => setGrade(Number(e.target.value))} style={{ padding: 10, borderRadius: 10 }}>
+          <option value={3}>پایه سوم</option>
+        </select>
+        <select value={subject} onChange={(e) => setSubject(e.target.value)} style={{ padding: 10, borderRadius: 10 }}>
+          {SUBJECTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+        </select>
+        <button onClick={loadStatus} disabled={loading} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 800 }}>
+          {loading ? '...' : '🔄 بروزرسانی'}
+        </button>
+      </div>
+
+      <div style={{ marginTop: 16, padding: 14, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
+        {!course ? (
+          <div style={{ direction: 'rtl' }}>برای این درس هنوز Course ثبت نشده. ابتدا PDF را از بخش آپلود، بارگذاری کن.</div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{ direction: 'rtl' }}>
+                <div style={{ fontWeight: 900 }}>{course.title}</div>
+                <div style={{ opacity: 0.8, marginTop: 4 }}>PDF: {course.pdf?.filename || 'ندارد'}</div>
+                <div style={{ opacity: 0.8, marginTop: 4 }}>Extract: {course.extracted?.exists ? `${course.extracted.method} (${course.extracted.textLength} chars)` : 'انجام نشده'}</div>
+                <div style={{ opacity: 0.8, marginTop: 4 }}>Build: {course.built?.chapters || 0} فصل / {course.built?.lessons || 0} درس</div>
+              </div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button onClick={() => runExtract(course)} disabled={busyKey === 'extract' || !course.pdf?.filename} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                  {busyKey === 'extract' ? 'در حال استخراج...' : '🧠 Extract متن'}
+                </button>
+                <button onClick={() => runBuild(course)} disabled={busyKey === 'build' || !course.extracted?.exists} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                  {busyKey === 'build' ? 'در حال ساخت...' : '🏗️ Build فصل‌ها'}
+                </button>
+                <button onClick={() => loadLessonsForCourse(course.courseId)} disabled={!course.courseId} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                  📚 لیست درس‌ها
+                </button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+
+      {lessons.length > 0 && (
+        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+          {lessons.map(l => {
+            const hasContent = !!(l.title && String(l.title).trim());
+            return (
+              <button key={l._id} onClick={() => openLesson(l._id)} style={{
+                textAlign: 'right', direction: 'rtl',
+                padding: 12, borderRadius: 14,
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.12)',
+                color: '#fff', cursor: 'pointer'
+              }}>
+                <div style={{ fontWeight: 900 }}>{l.chapter}. {l.title}</div>
+                <div style={{ opacity: 0.7, marginTop: 4 }}>{hasContent ? 'دارای محتوا' : 'بدون محتوا'}</div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {selectedLesson && (
+        <div style={{ marginTop: 16, padding: 14, borderRadius: 14, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+            <div style={{ direction: 'rtl', fontWeight: 900 }}>ویرایش درس</div>
+            <button onClick={() => { setSelectedLesson(null); setSelectedLessonId(null); }} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
+          </div>
+          <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
+          <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} style={{ width: '100%', marginTop: 10, minHeight: 220, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: 'rtl' }} />
+          <button onClick={saveLesson} disabled={busyKey === 'save'} style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+            {busyKey === 'save' ? 'در حال ذخیره...' : '💾 ذخیره'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Demo missions per subject ────────────────────────────────────────────
 function buildMissions(subjectId) {
   const banks = {
@@ -714,6 +886,7 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
         }}
         user={user}
         onLogout={logout}
+        onDashboard={() => setScreen('dashboard')}
       />
       {screen === "chapters" && (
         <ChaptersScreen
@@ -759,6 +932,15 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
           onLogout={logout}
           api={api}
           SUBJECTS={SUBJECTS}
+        />
+      )}
+      {screen === "dashboard" && (
+        <DashboardScreen
+          token={token}
+          user={user}
+          SUBJECTS={SUBJECTS}
+          api={api}
+          onBack={() => setScreen('home')}
         />
       )}
     </>
@@ -812,7 +994,7 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
 }
 
 // ─── HOME SCREEN ──────────────────────────────────────────────────────────
-function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBadges, onHall, user, onLogout }) {
+function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBadges, onHall, user, onLogout, onDashboard }) {
   return (
     <div style={{
       minHeight: "100vh", background: "linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)",
@@ -820,6 +1002,21 @@ function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBad
       display: "flex", flexDirection: "column", alignItems: "center", position: "relative"
     }}>
       <LiveClock />
+      {user?.role === 'teacher' && (
+        <button onClick={onDashboard} style={{
+          alignSelf: 'flex-start',
+          background: 'rgba(255,255,255,0.08)',
+          border: '1px solid rgba(255,255,255,0.15)',
+          color: '#fff',
+          padding: '10px 14px',
+          borderRadius: 14,
+          cursor: 'pointer',
+          fontWeight: 800,
+          marginBottom: 10,
+        }}>
+          🧰 داشبورد محتوا
+        </button>
+      )}
       {/* Dashboard Floating Nav Bar */}
       <div style={{
         position: 'fixed', bottom: '20px', left: '50%', transform: 'translateX(-50%)', zIndex: 1000,
@@ -987,6 +1184,7 @@ function UploadScreen({ uploadedText, setUploadedText, uploadSubject, setUploadS
   const [tab, setTab] = useState('mission'); // 'mission' | 'pdf'
   const [pdfFile, setPdfFile] = useState(null);
   const pdfRef = useRef();
+  const grade = 3;
 
   async function handleFile(e) {
     const file = e.target.files[0];
@@ -1041,6 +1239,7 @@ function UploadScreen({ uploadedText, setUploadedText, uploadSubject, setUploadS
     if (!pdfFile) return;
     const formData = new FormData();
     formData.append("subject", uploadSubject);
+    formData.append("grade", String(grade));
     formData.append("pdf", pdfFile);
 
     try {
@@ -1939,13 +2138,14 @@ function ChaptersScreen({ subject, token, onBack, onStudy, onPlay, userProgress 
   const [chapters, setChapters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState(null);
+  const grade = 3;
   const c = subject?.color || COLORS.persian;
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     Promise.all([
       api.getLessons(token, subject.id),
-      api.pdfStatus(token, subject.id)
+      api.pdfStatus(token, subject.id, grade)
     ]).then(([lessonsData, pdfData]) => {
       setChapters(lessonsData);
       if (pdfData.exists) {

@@ -75,8 +75,11 @@ export const updateLessonProgress = async (token, lessonId, field) => {
   return res.json();
 };
 
-export const pdfStatus = async (token, subject) => {
-  const res = await fetch(`${API_URL}/lessons/pdf-status/${subject}`, {
+export const pdfStatus = async (token, subject, grade) => {
+  const url = grade !== undefined && grade !== null
+    ? `${API_URL}/lessons/pdf-status/${subject}/${grade}`
+    : `${API_URL}/lessons/pdf-status/${subject}`;
+  const res = await fetch(url, {
     headers: { 'Authorization': `Bearer ${token}` },
   });
   return res.json();
@@ -87,6 +90,64 @@ export const uploadPdf = async (token, formData) => {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${token}` },
     body: formData, // FormData doesn't need Content-Type header manually
+  });
+  return res.json();
+};
+
+export const curriculumStatus = async (token, params = {}) => {
+  const qs = new URLSearchParams();
+  if (params.grade !== undefined && params.grade !== null) qs.set('grade', String(params.grade));
+  if (params.subject) qs.set('subject', params.subject);
+  const url = `${API_URL}/curriculum/status${qs.toString() ? `?${qs.toString()}` : ''}`;
+  const res = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return res.json();
+};
+
+export const extractTextbook = async (token, payload) => {
+  const res = await fetch(`${API_URL}/curriculum/textbooks/extract`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+};
+
+export const buildTextbook = async (token, payload) => {
+  const res = await fetch(`${API_URL}/curriculum/textbooks/build`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  return res.json();
+};
+
+export const curriculumLessons = async (token, params = {}) => {
+  const qs = new URLSearchParams();
+  if (params.courseId) qs.set('courseId', params.courseId);
+  if (params.chapterId) qs.set('chapterId', params.chapterId);
+  const url = `${API_URL}/curriculum/lessons${qs.toString() ? `?${qs.toString()}` : ''}`;
+  const res = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return res.json();
+};
+
+export const updateLesson = async (token, lessonId, payload) => {
+  const res = await fetch(`${API_URL}/curriculum/lessons/${lessonId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
   });
   return res.json();
 };

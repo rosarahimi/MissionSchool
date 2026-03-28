@@ -13,11 +13,22 @@ const missionSchema = new mongoose.Schema({
 });
 
 const lessonSchema = new mongoose.Schema({
+  grade: { type: Number, index: true },
   subject: { type: String, required: true, index: true },
+  courseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Course', index: true },
+  chapterId: { type: mongoose.Schema.Types.ObjectId, ref: 'Chapter', index: true },
   chapter: { type: Number, required: true },
+  orderIndex: { type: Number, default: 0 },
   title: { type: String, required: true },
   content: { type: String, required: true },
-  missions: [missionSchema]
+  missions: [missionSchema],
+  source: {
+    chunkIds: [{ type: mongoose.Schema.Types.ObjectId }],
+    chunkRange: {
+      from: Number,
+      to: Number,
+    },
+  }
 });
 
 module.exports = mongoose.model('Lesson', lessonSchema);
