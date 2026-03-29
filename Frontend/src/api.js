@@ -68,6 +68,34 @@ export const curriculumLessonProgress = async (token, lessonId, field) => {
   return res.json();
 };
 
+export const generateLessonMissions = async (token, lessonId, opts = {}) => {
+  const res = await fetch(`${API_URL}/curriculum/lessons/${lessonId}/missions/generate`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ provider: opts.provider, model: opts.model, maxTokens: opts.maxTokens }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { error: data?.message || data?.error || `HTTP ${res.status}` };
+  return data;
+};
+
+export const generateLessonMissionsFromText = async (token, lessonId, text, opts = {}) => {
+  const res = await fetch(`${API_URL}/curriculum/lessons/${lessonId}/missions/generate-from-text`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify({ text, provider: opts.provider, model: opts.model, maxTokens: opts.maxTokens }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { error: data?.message || data?.error || `HTTP ${res.status}` };
+  return data;
+};
+
 export const curriculumTextbookStatus = async (token, subject, grade) => {
   const url = grade !== undefined && grade !== null
     ? `${API_URL}/curriculum/textbooks/status/${subject}/${grade}`

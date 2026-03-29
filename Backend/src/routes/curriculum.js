@@ -5,6 +5,7 @@ const fs = require('fs');
 const multer = require('multer');
 const mongoose = require('mongoose');
 const { Readable } = require('stream');
+const axios = require('axios');
 
 const auth = require('../middleware/auth');
 const requireTeacher = require('../middleware/requireTeacher');
@@ -21,6 +22,266 @@ const upload = multer({ storage: multer.memoryStorage() });
 const extractJobs = new Map();
 function createJobId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeAnthropicTextResponse(data) {
+  const raw = Array.isArray(data?.content)
+    ? data.content.map(i => i?.text || '').join('')
+    : '';
+  return String(raw || '').trim();
+}
+
+function parseMissionsJson(rawText) {
+  const clean = String(rawText || '').replace(/```json|```/g, '').trim();
+  const parsed = JSON.parse(clean || '[]');
+  if (!Array.isArray(parsed)) {
+    throw new Error('AI output must be a JSON array');
+  }
+  return parsed;
+}
+
+function sanitizeGeneratedMissions(missions) {
+  const list = Array.isArray(missions) ? missions : [];
+
+  const splitOrderWords = (input) => {
+    if (input === undefined || input === null) return [];
+    const raw = String(input).trim();
+    if (!raw) return [];
+    return raw
+      .split(/\s*(?:-|,|،|؛|\|)\s*/g)
+      .map(s => String(s || '').trim())
+      .map(s => s.replace(/[.\u06d4]+$/g, '').trim())
+      .filter(Boolean);
+  };
+
+  const wordsFromQuestion = (q) => {
+    const rawQ = String(q || '').trim();
+    if (!rawQ) return [];
+    const parts = rawQ.split(/[:：]/);
+    const tail = String(parts.length > 1 ? parts.slice(1).join(':') : rawQ).trim();
+    // If there's no clear separators, don't attempt.
+    if (!/[-،,]/.test(tail)) return [];
+    return splitOrderWords(tail);
+  };
+
+  const questionHasEmbeddedWordList = (q) => {
+    const rawQ = String(q || '').trim();
+    if (!rawQ) return false;
+    const parts = rawQ.split(/[:：]/);
+    if (parts.length <= 1) return false;
+    const tail = String(parts.slice(1).join(':')).trim();
+    return !!tail && /[-،,]/.test(tail);
+  };
+
+  const cleanOrderQuestion = (q) => {
+    const rawQ = String(q || '').trim();
+    if (!rawQ) return '';
+    const parts = rawQ.split(/[:：]/);
+    if (parts.length <= 1) return rawQ;
+    return String(parts[0] || '').trim();
+  };
+
+  const wordsFromAnswerSentence = (answer) => {
+    const raw = String(answer || '').trim();
+    if (!raw) return [];
+    const cleaned = raw.replace(/[.\u06d4]+$/g, '').trim();
+    const words = cleaned.split(/\s+/g).map(s => s.trim()).filter(Boolean);
+    return words.length >= 3 ? words : [];
+  };
+
+  const normalized = list.map((m) => {
+    const type = String(m?.type || '').toLowerCase();
+    const stage = Number(m?.stage);
+    const q = String(m?.q || '').trim();
+    let exp = m?.exp;
+    exp = String(exp === undefined || exp === null ? '' : exp).trim();
+
+    const base = {
+      type,
+      stage,
+      q,
+      exp: exp || 'توضیح موجود نیست.',
+    };
+
+    if (type === 'mcq') {
+      const options = Array.isArray(m?.options) ? m.options.map(String) : [];
+      const answer = typeof m?.answer === 'number' ? m.answer : Number(m?.answer);
+      return {
+        ...base,
+        options,
+        answer: Number.isFinite(answer) ? answer : 0,
+      };
+    }
+
+    if (type === 'fill') {
+      return {
+        ...base,
+        blank: m?.blank !== undefined ? String(m.blank) : '',
+        hint: m?.hint !== undefined ? String(m.hint) : '',
+        answer: m?.answer,
+      };
+    }
+
+    if (type === 'order') {
+      const originalAnswer = m?.answer !== undefined ? m.answer : '';
+      let words = [];
+      if (Array.isArray(m?.words)) {
+        words = m.words.map(String).map(s => s.trim()).filter(Boolean);
+      } else if (typeof m?.words === 'string') {
+        words = splitOrderWords(m.words);
+      }
+      const extractedFromQ = !words.length;
+      if (extractedFromQ) words = wordsFromQuestion(q);
+      if (!words.length) words = wordsFromAnswerSentence(originalAnswer);
+
+      const nextQ = questionHasEmbeddedWordList(q) ? cleanOrderQuestion(q) : q;
+      return {
+        ...base,
+        q: nextQ,
+        words,
+        answer: originalAnswer,
+      };
+    }
+
+    return base;
+  });
+
+  return normalized.filter(m => {
+    if (!['mcq', 'fill', 'order'].includes(m.type)) return false;
+    if (!Number.isFinite(m.stage)) return false;
+    if (!String(m.q || '').trim()) return false;
+    if (!String(m.exp || '').trim()) return false;
+    return true;
+  });
+}
+
+async function generateMissionsWithAnthropic({ subjectLabel, text, model, maxTokens }) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    const err = new Error('ANTHROPIC_API_KEY is not set');
+    err.statusCode = 500;
+    throw err;
+  }
+
+  const prompt = `You are an educational game designer for children aged 8-12.
+Given this lesson content from a ${subjectLabel} textbook:
+
+"""
+${text}
+"""
+
+Create exactly 8 educational missions as a JSON array. Each mission must have:
+- type: "mcq" | "fill" | "order"
+- stage: 1, 2, or 3 (stages 1-2 have 3 missions each, stage 3 has 2)
+- q: question text
+- For mcq: options (array of 4 strings), answer (index 0-3)
+- For fill: blank (the answer word), hint (one short hint)
+- For order: words (array of 4-5 words shuffled), answer (correct sentence)
+- exp: short explanation (1-2 sentences) in the same language as the lesson
+
+Return ONLY valid JSON array, no markdown, no extra text.`;
+
+  let res;
+  try {
+    res = await axios.post(
+      'https://api.anthropic.com/v1/messages',
+      {
+        model: model || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+        max_tokens: typeof maxTokens === 'number' ? maxTokens : 1200,
+        messages: [{ role: 'user', content: prompt }],
+      },
+      {
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': process.env.ANTHROPIC_VERSION || '2023-06-01',
+        },
+        timeout: 60_000,
+      }
+    );
+  } catch (err) {
+    const status = err?.response?.status;
+    const upstream = err?.response?.data;
+    const detail = upstream?.error?.message || upstream?.error?.type || JSON.stringify(upstream || {});
+
+    const wrapped = new Error(`Anthropic error${status ? ` (${status})` : ''}: ${detail}`);
+    wrapped.statusCode = status || 502;
+    wrapped.upstream = upstream;
+    throw wrapped;
+  }
+
+  const rawText = normalizeAnthropicTextResponse(res.data);
+  return parseMissionsJson(rawText);
+}
+
+async function generateMissionsWithOpenAI({ subjectLabel, text, model, maxTokens }) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (!apiKey) {
+    const err = new Error('OPENAI_API_KEY is not set');
+    err.statusCode = 500;
+    throw err;
+  }
+
+  const prompt = `You are an educational game designer for children aged 8-12.
+Given this lesson content from a ${subjectLabel} textbook:
+
+"""
+${text}
+"""
+
+Create exactly 8 educational missions as a JSON array. Each mission must have:
+- type: "mcq" | "fill" | "order"
+- stage: 1, 2, or 3 (stages 1-2 have 3 missions each, stage 3 has 2)
+- q: question text
+- For mcq: options (array of 4 strings), answer (index 0-3)
+- For fill: blank (the answer word), hint (one short hint)
+- For order: words (array of 4-5 words shuffled), answer (correct sentence)
+- exp: short explanation (1-2 sentences) in the same language as the lesson
+
+Return ONLY valid JSON array, no markdown, no extra text.`;
+
+  let res;
+  try {
+    res = await axios.post(
+      'https://api.openai.com/v1/chat/completions',
+      {
+        model: model || process.env.OPENAI_MODEL || 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'Return only valid JSON. Do not wrap in markdown.' },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.2,
+        max_tokens: typeof maxTokens === 'number' ? maxTokens : 1200,
+      },
+      {
+        headers: {
+          'content-type': 'application/json',
+          'authorization': `Bearer ${apiKey}`,
+        },
+        timeout: 60_000,
+      }
+    );
+  } catch (err) {
+    const status = err?.response?.status;
+    const upstream = err?.response?.data;
+    const detail = upstream?.error?.message || upstream?.error?.type || JSON.stringify(upstream || {});
+
+    const wrapped = new Error(`OpenAI error${status ? ` (${status})` : ''}: ${detail}`);
+    wrapped.statusCode = status || 502;
+    wrapped.upstream = upstream;
+    throw wrapped;
+  }
+
+  const rawText = String(res?.data?.choices?.[0]?.message?.content || '').trim();
+  return parseMissionsJson(rawText);
+}
+
+async function generateMissions({ provider, subjectLabel, text, model, maxTokens }) {
+  const p = String(provider || process.env.MISSION_AI_PROVIDER || 'anthropic').toLowerCase();
+  if (p === 'openai' || p === 'gpt') {
+    return generateMissionsWithOpenAI({ subjectLabel, text, model, maxTokens });
+  }
+  return generateMissionsWithAnthropic({ subjectLabel, text, model, maxTokens });
 }
 
 // Textbooks (PDF)
@@ -61,22 +322,6 @@ router.post('/textbooks/upload', auth, requireTeacher, upload.single('pdf'), asy
         res.status(500).json({ success: false, error: err.message });
       })
       .on('finish', () => {
-        const courseTitle = safeSubject === 'persian'
-          ? `فارسی پایه ${safeGrade || ''}`.trim()
-          : `${safeSubject}${safeGrade ? ` grade ${safeGrade}` : ''}`.trim();
-        Course.findOneAndUpdate(
-          { grade: grade, subject: safeSubject },
-          {
-            $set: {
-              grade: grade,
-              subject: safeSubject,
-              title: courseTitle,
-              textbook: { bucketName: 'textbooks', filename: pdfFilename }
-            }
-          },
-          { upsert: true, new: true }
-        ).catch(() => {});
-
         res.json({
           success: true,
           message: "فایل کتاب با موفقیت در دیتابیس آپلود شد.",
@@ -87,6 +332,66 @@ router.post('/textbooks/upload', auth, requireTeacher, upload.single('pdf'), asy
 
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+router.post('/lessons/:id/missions/generate', auth, requireTeacher, async (req, res) => {
+  try {
+    const lesson = await Lesson.findById(req.params.id).select('content subject grade missions');
+    if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+    const text = String(lesson.content || '').trim();
+    if (!text) return res.status(400).json({ error: 'Lesson content is empty' });
+
+    const subjectLabel = String(lesson.subject || 'lesson');
+    const missions = await generateMissions({
+      provider: req.body?.provider,
+      subjectLabel,
+      text,
+      model: req.body?.model,
+      maxTokens: req.body?.maxTokens,
+    });
+    const safeMissions = sanitizeGeneratedMissions(missions);
+    if (!safeMissions.length) return res.status(422).json({ error: 'No missions generated' });
+
+    lesson.missions = safeMissions;
+    await lesson.save();
+    res.json({ success: true, lessonId: lesson._id, missions: safeMissions });
+  } catch (err) {
+    const status = err.statusCode || err?.response?.status || 500;
+    res.status(status).json({
+      error: err.message || 'Mission generation failed',
+      ...(err?.upstream ? { upstream: err.upstream } : {}),
+    });
+  }
+});
+
+router.post('/lessons/:id/missions/generate-from-text', auth, requireTeacher, async (req, res) => {
+  try {
+    const lesson = await Lesson.findById(req.params.id).select('subject missions');
+    if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+    const text = String(req.body?.text || '').trim();
+    if (!text) return res.status(400).json({ error: 'text is required' });
+
+    const subjectLabel = String(lesson.subject || 'lesson');
+    const missions = await generateMissions({
+      provider: req.body?.provider,
+      subjectLabel,
+      text,
+      model: req.body?.model,
+      maxTokens: req.body?.maxTokens,
+    });
+    const safeMissions = sanitizeGeneratedMissions(missions);
+    if (!safeMissions.length) return res.status(422).json({ error: 'No missions generated' });
+
+    lesson.missions = safeMissions;
+    await lesson.save();
+    res.json({ success: true, lessonId: lesson._id, missions: safeMissions });
+  } catch (err) {
+    const status = err.statusCode || err?.response?.status || 500;
+    res.status(status).json({
+      error: err.message || 'Mission generation failed',
+      ...(err?.upstream ? { upstream: err.upstream } : {}),
+    });
   }
 });
 
@@ -132,17 +437,10 @@ router.delete('/textbooks/:subject/:grade?', auth, requireTeacher, async (req, r
       await bucket.delete(file._id);
     }
 
-    if (Number.isFinite(grade)) {
-      await Course.updateOne(
-        { grade: Number(grade), subject: safeSubject },
-        { $unset: { textbook: '' } }
-      );
-    } else {
-      await Course.updateMany(
-        { subject: safeSubject },
-        { $unset: { textbook: '' } }
-      );
-    }
+    const courseFilter = Number.isFinite(grade)
+      ? { grade: Number(grade), subject: safeSubject }
+      : { subject: safeSubject };
+    await Course.updateMany(courseFilter, { $unset: { textbook: '' } });
 
     res.json({ success: true });
   } catch (err) {
@@ -177,7 +475,17 @@ router.delete('/lessons/:id', auth, requireTeacher, async (req, res) => {
   try {
     const lesson = await Lesson.findById(req.params.id);
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
+
+    const chapterId = lesson.chapterId ? String(lesson.chapterId) : null;
     await Lesson.deleteOne({ _id: lesson._id });
+
+    if (chapterId) {
+      const remaining = await Lesson.countDocuments({ chapterId });
+      if (remaining === 0) {
+        await Chapter.deleteOne({ _id: chapterId });
+      }
+    }
+
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -212,18 +520,19 @@ router.post('/courses', auth, requireTeacher, async (req, res) => {
       ? String(title).trim()
       : (safeSubject === 'persian' ? `فارسی پایه ${safeGrade}` : `${safeSubject} grade ${safeGrade}`);
 
-    const course = await Course.findOneAndUpdate(
-      { grade: safeGrade, subject: safeSubject },
-      {
-        $setOnInsert: { grade: safeGrade, subject: safeSubject },
-        $set: {
-          title: courseTitle,
-          ...(textbook !== undefined ? { textbook } : {}),
-          ...(meta !== undefined ? { meta } : {}),
-        }
-      },
-      { upsert: true, new: true }
-    );
+    const last = await Course.findOne({ grade: safeGrade, subject: safeSubject })
+      .select('buildNumber')
+      .sort({ buildNumber: -1 });
+    const nextBuildNumber = (Number(last?.buildNumber) || 0) + 1;
+
+    const course = await Course.create({
+      grade: safeGrade,
+      subject: safeSubject,
+      buildNumber: nextBuildNumber,
+      title: courseTitle,
+      ...(textbook !== undefined ? { textbook } : {}),
+      ...(meta !== undefined ? { meta } : {}),
+    });
 
     res.status(201).json(course);
   } catch (err) {
@@ -368,9 +677,9 @@ router.get('/lessons', auth, async (req, res) => {
     if (req.query.chapterId) filter.chapterId = req.query.chapterId;
 
     const lessons = await Lesson.find(filter)
-      .select('title subject chapter courseId chapterId grade orderIndex')
-      .populate('chapterId', 'number title summary')
-      .sort({ orderIndex: 1, chapter: 1 });
+      .select('title subject chapter courseId chapterId grade orderIndex origin createdAt')
+      .populate('chapterId', 'courseId number title summary origin createdAt')
+      .sort({ createdAt: 1 });
 
     res.json(lessons);
   } catch (err) {
@@ -380,7 +689,7 @@ router.get('/lessons', auth, async (req, res) => {
 
 router.get('/lessons/:id', auth, async (req, res) => {
   try {
-    const lesson = await Lesson.findById(req.params.id).populate('chapterId', 'number title summary');
+    const lesson = await Lesson.findById(req.params.id).populate('chapterId', 'courseId number title summary origin createdAt');
     if (!lesson) return res.status(404).json({ error: 'Lesson not found' });
     res.json(lesson);
   } catch (err) {
@@ -413,34 +722,53 @@ router.post('/lessons/:id/progress', auth, async (req, res) => {
 
 router.post('/lessons', auth, requireTeacher, async (req, res) => {
   try {
-    const payload = { ...(req.body || {}) };
+    const payload = {
+      grade: req.body.grade,
+      subject: req.body.subject,
+      courseId: req.body.courseId,
+      chapterId: req.body.chapterId,
+      chapter: req.body.chapter,
+      orderIndex: req.body.orderIndex,
+      title: req.body.title,
+      content: req.body.content,
+      missions: Array.isArray(req.body.missions) ? req.body.missions : [],
+      origin: 'manual',
+    };
 
-    const chapterNumber = payload.chapter !== undefined && payload.chapter !== null ? Number(payload.chapter) : null;
-    const chapterTitle = payload.chapterTitle !== undefined ? String(payload.chapterTitle || '').trim() : '';
-    delete payload.chapterTitle;
+    if (payload.grade === undefined || payload.grade === null || Number.isNaN(Number(payload.grade))) {
+      return res.status(400).json({ error: 'grade is required' });
+    }
+    if (!payload.subject) return res.status(400).json({ error: 'subject is required' });
+    if (!payload.title) return res.status(400).json({ error: 'title is required' });
+    if (!payload.content) return res.status(400).json({ error: 'content is required' });
 
-    if (payload.courseId && Number.isFinite(chapterNumber)) {
-      const inferredTitle = chapterTitle || payload.title || `درس ${chapterNumber}`;
-      const summary = payload.content ? String(payload.content).slice(0, 220) : undefined;
+    const courseId = payload.courseId ? String(payload.courseId) : '';
+    if (courseId) {
+      const chapterNumber = Number(payload.chapter);
+      if (!Number.isFinite(chapterNumber)) {
+        return res.status(400).json({ error: 'chapter number is required' });
+      }
 
+      const title = String(req.body.chapterTitle || '').trim() || `فصل ${chapterNumber}`;
       const ch = await Chapter.findOneAndUpdate(
-        { courseId: payload.courseId, number: chapterNumber },
+        { courseId, number: chapterNumber },
         {
-          $setOnInsert: {
-            courseId: payload.courseId,
-            number: chapterNumber,
-          },
-          $set: {
-            title: inferredTitle,
-            ...(summary ? { summary } : {}),
-          }
+          $set: { title, number: chapterNumber, courseId },
+          $setOnInsert: { origin: 'manual' },
         },
         { upsert: true, new: true }
       );
 
       payload.chapterId = ch._id;
+      payload.chapter = chapterNumber;
       if (payload.orderIndex === undefined || payload.orderIndex === null) {
-        payload.orderIndex = chapterNumber;
+        const last = await Lesson.findOne({ chapterId: ch._id }).select('orderIndex').sort({ orderIndex: -1 });
+        payload.orderIndex = (Number(last?.orderIndex) || 0) + 1;
+      }
+    } else if (payload.chapterId) {
+      if (payload.orderIndex === undefined || payload.orderIndex === null) {
+        const last = await Lesson.findOne({ chapterId: payload.chapterId }).select('orderIndex').sort({ orderIndex: -1 });
+        payload.orderIndex = (Number(last?.orderIndex) || 0) + 1;
       }
     }
 
@@ -483,7 +811,7 @@ router.get('/status', auth, requireTeacher, async (req, res) => {
     if (grade !== undefined && Number.isFinite(grade)) courseFilter.grade = grade;
     if (subject) courseFilter.subject = subject;
 
-    const courses = await Course.find(courseFilter).sort({ grade: 1, subject: 1 });
+    const courses = await Course.find(courseFilter).sort({ createdAt: -1, grade: 1, subject: 1 });
     const results = [];
 
     for (const c of courses) {
@@ -496,7 +824,9 @@ router.get('/status', auth, requireTeacher, async (req, res) => {
         courseId: c._id,
         grade: c.grade,
         subject: c.subject,
+        buildNumber: c.buildNumber,
         title: c.title,
+        createdAt: c.createdAt,
         pdf: { filename: c.textbook?.filename || null },
         extracted: extracted ? {
           exists: true,
@@ -636,7 +966,7 @@ router.get('/textbooks/extract/:jobId', auth, requireTeacher, async (req, res) =
 
 router.post('/textbooks/build', auth, requireTeacher, async (req, res) => {
   try {
-    const { grade, subject, replaceExisting } = req.body;
+    const { grade, subject, replaceExisting, confirmReplace } = req.body;
     if (!subject) return res.status(400).json({ error: 'subject is required' });
     if (grade === undefined || grade === null || Number.isNaN(Number(grade))) {
       return res.status(400).json({ error: 'grade is required' });
@@ -654,27 +984,28 @@ router.post('/textbooks/build', auth, requireTeacher, async (req, res) => {
       ? `فارسی پایه ${safeGrade}`
       : `${safeSubject} grade ${safeGrade}`;
 
-    const course = await Course.findOneAndUpdate(
-      { grade: safeGrade, subject: safeSubject },
-      {
-        $set: {
-          grade: safeGrade,
-          subject: safeSubject,
-          title: courseTitle,
-          textbook: {
-            bucketName: 'textbooks',
-            filename: textbookText.filename,
-            fileId: textbookText.source?.fileId,
-          },
-        }
-      },
-      { upsert: true, new: true }
-    );
+    const last = await Course.findOne({ grade: safeGrade, subject: safeSubject })
+      .select('buildNumber')
+      .sort({ buildNumber: -1 });
+    const nextBuildNumber = (Number(last?.buildNumber) || 0) + 1;
 
-    if (replaceExisting) {
-      await Lesson.deleteMany({ courseId: course._id });
-      await Chapter.deleteMany({ courseId: course._id });
-    }
+    // New behavior: every build creates a NEW course row (a new build instance)
+    // and builds chapters/lessons under that courseId.
+    const course = await Course.create({
+      grade: safeGrade,
+      subject: safeSubject,
+      buildNumber: nextBuildNumber,
+      title: courseTitle,
+      textbook: {
+        bucketName: 'textbooks',
+        filename: textbookText.filename,
+        fileId: textbookText.source?.fileId,
+      },
+    });
+
+    // Backwards-compat fields, now ignored because we always build into a new course.
+    const wantsReplace = !!replaceExisting;
+    const allowReplace = String(confirmReplace || '').trim() === 'REPLACE';
 
     const parsedLessons = safeSubject === 'persian'
       ? splitLessonsFa(textbookText.text)
@@ -685,36 +1016,26 @@ router.post('/textbooks/build', auth, requireTeacher, async (req, res) => {
       const title = l.title && String(l.title).trim() ? String(l.title).trim() : `درس ${l.number}`;
       const content = (l.content || '').trim();
       const summary = content.slice(0, 220);
-      const chapter = await Chapter.findOneAndUpdate(
-        { courseId: course._id, number: l.number },
-        {
-          $set: {
-            courseId: course._id,
-            number: l.number,
-            title,
-            summary,
-          }
-        },
-        { upsert: true, new: true }
-      );
+      const chapter = await Chapter.create({
+        courseId: course._id,
+        number: l.number,
+        title,
+        summary,
+        origin: 'build',
+      });
 
-      const lesson = await Lesson.findOneAndUpdate(
-        { courseId: course._id, chapterId: chapter._id },
-        {
-          $set: {
-            grade: safeGrade,
-            subject: safeSubject,
-            courseId: course._id,
-            chapterId: chapter._id,
-            chapter: l.number,
-            orderIndex: l.number,
-            title,
-            content,
-            missions: [],
-          }
-        },
-        { upsert: true, new: true }
-      );
+      const lesson = await Lesson.create({
+        grade: safeGrade,
+        subject: safeSubject,
+        courseId: course._id,
+        chapterId: chapter._id,
+        chapter: l.number,
+        orderIndex: l.number,
+        title,
+        content,
+        origin: 'build',
+        missions: [],
+      });
 
       results.push({ chapterId: chapter._id, lessonId: lesson._id, number: l.number, title });
     }
@@ -724,6 +1045,7 @@ router.post('/textbooks/build', auth, requireTeacher, async (req, res) => {
       courseId: course._id,
       chapters: results.length,
       items: results,
+      ...(wantsReplace ? { warning: 'replaceExisting is ignored: build now always creates a new Course row' } : {}),
     });
   } catch (err) {
     res.status(500).json({ error: err.message });

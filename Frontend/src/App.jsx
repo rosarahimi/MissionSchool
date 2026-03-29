@@ -82,14 +82,57 @@ function LiveClock() {
   );
 }
 
+function GlobalStyles() {
+  return (
+    <style>{`
+      :root {
+        --ms-scroll-thumb: rgba(255,255,255,0.18);
+        --ms-scroll-thumb-hover: rgba(255,255,255,0.28);
+        --ms-scroll-track: rgba(0,0,0,0);
+      }
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: var(--ms-scroll-thumb) var(--ms-scroll-track);
+      }
+      *::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      *::-webkit-scrollbar-track {
+        background: var(--ms-scroll-track);
+      }
+      *::-webkit-scrollbar-thumb {
+        background: var(--ms-scroll-thumb);
+        border-radius: 999px;
+        border: 2px solid rgba(0,0,0,0);
+        background-clip: padding-box;
+      }
+      *::-webkit-scrollbar-thumb:hover {
+        background: var(--ms-scroll-thumb-hover);
+        border: 2px solid rgba(0,0,0,0);
+        background-clip: padding-box;
+      }
+    `}</style>
+  );
+}
+
 function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
   const [grade, setGrade] = useState(3);
   const [subject, setSubject] = useState('persian');
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState('');
+  const [selectedCourseId, setSelectedCourseId] = useState('');
+  const [missionAiProvider, setMissionAiProvider] = useState(() => {
+    try {
+      return localStorage.getItem('missionAiProvider') || 'anthropic';
+    } catch {
+      return 'anthropic';
+    }
+  });
   const [status, setStatus] = useState(null);
   const [extractJob, setExtractJob] = useState(null);
   const [lessons, setLessons] = useState([]);
+  const [lessonsOpen, setLessonsOpen] = useState(false);
   const [showAddLesson, setShowAddLesson] = useState(false);
   const [showPdfUpload, setShowPdfUpload] = useState(false);
   const [dashboardPdfFile, setDashboardPdfFile] = useState(null);
@@ -101,6 +144,10 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
   const [pageImageFile, setPageImageFile] = useState(null);
   const dashboardPageFileRef = useRef();
 
+  const [showMissionManager, setShowMissionManager] = useState(false);
+  const [missionManagerLesson, setMissionManagerLesson] = useState(null);
+  const [missionJson, setMissionJson] = useState('');
+
   const [showCourseManager, setShowCourseManager] = useState(false);
   const [allCourses, setAllCourses] = useState([]);
   const [newCourseGrade, setNewCourseGrade] = useState(3);
@@ -111,6 +158,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
   const [newLessonChapterTitle, setNewLessonChapterTitle] = useState('');
   const [newLessonTitle, setNewLessonTitle] = useState('');
   const [newLessonContent, setNewLessonContent] = useState('');
+  const [addLessonCourseId, setAddLessonCourseId] = useState('');
   const [selectedLessonId, setSelectedLessonId] = useState(null);
   const [selectedLesson, setSelectedLesson] = useState(null);
   const [editChapter, setEditChapter] = useState('');
@@ -126,10 +174,17 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     try {
       const s = await api.curriculumStatus(token, { grade, subject });
       setStatus(s);
+
+      const nextCourses = Array.isArray(s?.courses) ? s.courses : [];
+      const hasSelected = !!selectedCourseId && nextCourses.some(c => String(c?.courseId) === String(selectedCourseId));
+      if (!hasSelected) {
+        const first = nextCourses[0];
+        setSelectedCourseId(first?.courseId ? String(first.courseId) : '');
+      }
     } finally {
       setLoading(false);
     }
-  }, [token, api, grade, subject]);
+  }, [token, api, grade, subject, selectedCourseId]);
 
   async function createCourse() {
     setBusyKey('course-create');
@@ -177,6 +232,14 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     loadStatus();
   }, [loadStatus]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('missionAiProvider', missionAiProvider);
+    } catch {
+      // ignore
+    }
+  }, [missionAiProvider]);
+
   const loadAllCourses = useCallback(async () => {
     if (!token) return;
     const list = await api.curriculumCourses(token);
@@ -186,6 +249,20 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
   async function loadLessonsForCourse(courseId, opts = {}) {
     const list = await api.curriculumLessons(token, { courseId, chapterId: opts.chapterId, includeUnlinked: true });
     setLessons(Array.isArray(list) ? list : []);
+  }
+
+  async function loadLessonsForSubject() {
+    const list = await api.curriculumLessons(token, { grade, subject });
+    setLessons(Array.isArray(list) ? list : []);
+  }
+
+  async function toggleLessonsPanel() {
+    if (lessonsOpen) {
+      setLessonsOpen(false);
+      return;
+    }
+    setLessonsOpen(true);
+    await loadLessonsForSubject();
   }
 
   async function openLesson(lessonId) {
@@ -198,6 +275,97 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     setEditContent(data?.content || '');
 
     setMissionTargetLessonId(lessonId);
+  }
+
+  async function openMissionManager(lessonId) {
+    setBusyKey(`mission-open-${lessonId}`);
+    try {
+      const data = await api.curriculumLessonDetails(token, lessonId);
+      if (data?.error) {
+        alert(data.error);
+        return;
+      }
+      setMissionManagerLesson(data);
+      setMissionJson(JSON.stringify(Array.isArray(data?.missions) ? data.missions : [], null, 2));
+      setShowMissionManager(true);
+    } finally {
+      setBusyKey('');
+    }
+  }
+
+  async function saveMissionManager() {
+    if (!missionManagerLesson?._id) return;
+    let parsed;
+    try {
+      parsed = JSON.parse(missionJson || '[]');
+    } catch {
+      alert('JSON نامعتبر است');
+      return;
+    }
+    if (!Array.isArray(parsed)) {
+      alert('فرمت باید آرایه باشد');
+      return;
+    }
+    setBusyKey('mission-save');
+    try {
+      const res = await api.updateLesson(token, missionManagerLesson._id, { missions: parsed });
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
+      setMissionManagerLesson(prev => prev ? { ...prev, missions: parsed } : prev);
+      setLessons(prev => prev.map(l => (l._id === missionManagerLesson._id ? { ...l, missions: parsed } : l)));
+      alert('ماموریت‌ها ذخیره شدند');
+    } finally {
+      setBusyKey('');
+    }
+  }
+
+  async function autoGenerateMissionsFromLessonContent() {
+    if (!missionManagerLesson?._id) return;
+    const lessonText = String(missionManagerLesson?.content || '').trim();
+    if (!lessonText) {
+      alert('محتوای درس خالی است');
+      return;
+    }
+    setBusyKey('mission-auto');
+    try {
+      const genRes = await api.generateLessonMissions(token, missionManagerLesson._id, { provider: missionAiProvider });
+      if (genRes?.error) {
+        alert(genRes.error);
+        return;
+      }
+      const parsed = Array.isArray(genRes?.missions) ? genRes.missions : [];
+      if (!parsed.length) {
+        alert('ماموریت معتبر تولید نشد');
+        return;
+      }
+
+      setMissionJson(JSON.stringify(parsed, null, 2));
+      setMissionManagerLesson(prev => prev ? { ...prev, missions: parsed } : prev);
+      setLessons(prev => prev.map(l => (l._id === missionManagerLesson._id ? { ...l, missions: parsed } : l)));
+      alert('ماموریت‌ها ساخته و ذخیره شدند');
+    } catch {
+      alert('خطا در ساخت/ذخیره ماموریت');
+    } finally {
+      setBusyKey('');
+    }
+  }
+
+  function removeMissionAt(index) {
+    let parsed;
+    try {
+      parsed = JSON.parse(missionJson || '[]');
+    } catch {
+      alert('JSON نامعتبر است');
+      return;
+    }
+    if (!Array.isArray(parsed)) {
+      alert('فرمت باید آرایه باشد');
+      return;
+    }
+    const next = parsed.filter((_, i) => i !== index);
+    setMissionJson(JSON.stringify(next, null, 2));
   }
 
   async function uploadTextbookPdf() {
@@ -251,53 +419,23 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
     setBusyKey('mission-extract');
     try {
-      const prompt = `You are an educational game designer for children aged 8-12.
-Given this text from a ${SUBJECTS.find(s => s.id === subject)?.label} textbook:
+      const genRes = await api.generateLessonMissionsFromText(token, missionTargetLessonId, pageText, { provider: missionAiProvider });
+      if (genRes?.error) {
+        alert(genRes.error);
+        return;
+      }
 
-"""
-${pageText}
-"""
-
-Create exactly 8 educational missions as a JSON array. Each mission must have:
-- type: "mcq" | "fill" | "order"
-- stage: 1, 2, or 3 (stages 1-2 have 3 missions each, stage 3 has 2)
-- q: question text
-- For mcq: options (array of 4 strings), answer (index 0-3)
-- For fill: blank (the answer word), hint (one short hint)
-- For order: words (array of 4-5 words shuffled), answer (correct sentence)
-- exp: short explanation (1-2 sentences) in the same language as the textbook
-
-Return ONLY valid JSON array, no markdown, no extra text.`;
-
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1000,
-          messages: [{ role: 'user', content: prompt }],
-        }),
-      });
-      const data = await res.json();
-      const raw = data.content?.map(i => i.text || "").join("") || "[]";
-      const clean = raw.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-      if (!Array.isArray(parsed) || parsed.length === 0) {
+      const parsed = Array.isArray(genRes?.missions) ? genRes.missions : [];
+      if (!parsed.length) {
         alert('ماموریت معتبر تولید نشد');
         return;
       }
 
-      const saveRes = await api.updateLesson(token, missionTargetLessonId, { missions: parsed });
-      if (saveRes?.error) {
-        alert(saveRes.error);
-        return;
-      }
-
-      alert('ماموریت‌ها ذخیره شدند');
+      alert('ماموریت‌ها ساخته و ذخیره شدند');
       setShowMissionExtract(false);
       setPageText('');
       setPageImageFile(null);
-      await loadLessonsForCourse(saveRes.courseId || (status?.courses?.[0]?.courseId));
+      if (selectedCourseId) await loadLessonsForCourse(selectedCourseId);
     } catch (e) {
       alert('خطا در ساخت/ذخیره ماموریت');
     } finally {
@@ -371,7 +509,7 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
     const title = String(newLessonTitle || '').trim();
     const content = String(newLessonContent || '').trim();
     if (!Number.isFinite(ch)) {
-      alert('شماره درس/فصل را درست وارد کن');
+      alert('شماره فصل را درست وارد کن');
       return;
     }
     if (!title || !content) {
@@ -385,7 +523,6 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
         subject,
         courseId,
         chapter: ch,
-        orderIndex: ch,
         chapterTitle,
         title,
         content,
@@ -401,7 +538,8 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
       setNewLessonTitle('');
       setNewLessonContent('');
       setShowAddLesson(false);
-      await loadLessonsForCourse(courseId);
+      setAddLessonCourseId('');
+      await loadLessonsForSubject();
       await loadStatus();
     } finally {
       setBusyKey('');
@@ -452,10 +590,13 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
   async function runBuild(course) {
     setBusyKey('build');
     try {
-      const res = await api.buildTextbook(token, { grade: course.grade, subject: course.subject, replaceExisting: true });
+      const res = await api.buildTextbook(token, { grade: course.grade, subject: course.subject, replaceExisting: false });
       if (!res.success) alert(res.error || 'خطا در ساخت فصل‌ها');
       await loadStatus();
-      if (res.courseId) await loadLessonsForCourse(res.courseId);
+      if (res.courseId) {
+        setSelectedCourseId(String(res.courseId));
+        await loadLessonsForCourse(res.courseId);
+      }
     } finally {
       setBusyKey('');
     }
@@ -500,7 +641,7 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
 
   const statusMessage = status?.message || status?.error;
   const courses = status?.courses || [];
-  const course = courses[0];
+  const course = courses.find(c => String(c?.courseId) === String(selectedCourseId)) || courses[0];
 
   return (
     <div style={{ minHeight: '100vh', padding: 20, background: 'linear-gradient(135deg,#0f1220,#16213e)', color: '#fff', fontFamily: "'Vazirmatn','Segoe UI',sans-serif" }}>
@@ -609,6 +750,8 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
           {statusMessage}
         </div>
       )}
+
+      
 
       {course?.courseId && showPdfUpload && (
         <div onClick={() => setShowPdfUpload(false)} style={{
@@ -760,6 +903,37 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
                 <div style={{ opacity: 0.8, marginTop: 4 }}>Build: {course.built?.chapters || 0} فصل / {course.built?.lessons || 0} درس</div>
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 900 }}>AI:</div>
+                  <button
+                    onClick={() => setMissionAiProvider('anthropic')}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 10,
+                      border: missionAiProvider === 'anthropic' ? '1px solid rgba(255,255,255,0.38)' : '1px solid rgba(255,255,255,0.18)',
+                      background: missionAiProvider === 'anthropic' ? 'rgba(255,255,255,0.16)' : 'transparent',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontWeight: 900,
+                    }}
+                  >
+                    ANTHROPIC
+                  </button>
+                  <button
+                    onClick={() => setMissionAiProvider('openai')}
+                    style={{
+                      padding: '8px 10px',
+                      borderRadius: 10,
+                      border: missionAiProvider === 'openai' ? '1px solid rgba(255,255,255,0.38)' : '1px solid rgba(255,255,255,0.18)',
+                      background: missionAiProvider === 'openai' ? 'rgba(255,255,255,0.16)' : 'transparent',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontWeight: 900,
+                    }}
+                  >
+                    GPT
+                  </button>
+                </div>
                 <button onClick={() => setShowPdfUpload(true)} disabled={!course.courseId} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
                   📄 PDF کتاب
                 </button>
@@ -785,9 +959,6 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
                   {busyKey === 'build' ? 'در حال ساخت...' : '🏗️ Build فصل‌ها'}
                 </button>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <button onClick={() => loadLessonsForCourse(course.courseId)} disabled={!course.courseId} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-                    📚 لیست درس‌ها
-                  </button>
                   <button onClick={() => setShowAddLesson(true)} disabled={!course.courseId} style={{ width: 44, height: 44, borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
                     +
                   </button>
@@ -798,38 +969,267 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
         )}
       </div>
 
-      {lessons.length > 0 && (
-        <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
-          {lessons.map(l => {
-            const hasContent = !!(l.title && String(l.title).trim());
-            const chapterTitle = l?.chapterId?.title;
-            return (
-              <div key={l._id} style={{
-                textAlign: 'right', direction: 'rtl',
-                padding: 12, borderRadius: 14,
-                background: 'rgba(255,255,255,0.05)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                color: '#fff'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-                  <button onClick={() => openLesson(l._id)} style={{
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    padding: 0, color: '#fff', textAlign: 'right', direction: 'rtl', flex: 1
-                  }}>
-                    <div style={{ fontWeight: 900 }}>{l.chapter}. {chapterTitle ? `${chapterTitle} — ` : ''}{l.title}</div>
-                    <div style={{ opacity: 0.7, marginTop: 4 }}>{hasContent ? 'دارای محتوا' : 'بدون محتوا'}</div>
-                  </button>
-                  <button onClick={() => removeLesson(l._id)} disabled={busyKey === `lesson-del-${l._id}`} style={{
-                    padding: '8px 10px', borderRadius: 10,
-                    border: 'none', cursor: 'pointer', fontWeight: 900,
-                    background: 'rgba(255,77,77,0.18)', color: '#fff'
-                  }}>
-                    {busyKey === `lesson-del-${l._id}` ? '...' : '🗑️'}
-                  </button>
+      {course?.courseId && (
+        <div style={{ marginTop: 10 }}>
+          <button onClick={toggleLessonsPanel} style={{
+            width: '100%',
+            padding: '10px 12px',
+            borderRadius: 14,
+            border: '1px solid rgba(255,255,255,0.12)',
+            background: lessonsOpen ? 'rgba(78,205,196,0.14)' : 'rgba(255,255,255,0.06)',
+            color: '#fff',
+            cursor: 'pointer',
+            fontWeight: 900,
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            direction: 'rtl'
+          }}>
+            <div>فصول و درس‌ها</div>
+            <div style={{ opacity: 0.9 }}>{lessonsOpen ? '▲ بستن' : '▼ باز کردن'}</div>
+          </button>
+        </div>
+      )}
+
+      {lessonsOpen && (() => {
+        if (lessons.length === 0) {
+          return (
+            <div style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 14,
+              background: 'rgba(255,255,255,0.05)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              color: '#fff',
+              direction: 'rtl',
+              textAlign: 'right'
+            }}>
+              هنوز درسی ثبت نشده.
+            </div>
+          );
+        }
+
+        const byChapter = new Map();
+        for (const l of lessons) {
+          const chId = l?.chapterId?._id || `noch-${l.chapter}`;
+          if (!byChapter.has(chId)) {
+            byChapter.set(chId, {
+              chapterId: l?.chapterId || null,
+              chapterNumber: l?.chapter,
+              items: [],
+            });
+          }
+          byChapter.get(chId).items.push(l);
+        }
+
+        const chapters = Array.from(byChapter.values()).sort((a, b) => {
+          const at = a?.chapterId?.createdAt ? new Date(a.chapterId.createdAt).getTime() : 0;
+          const bt = b?.chapterId?.createdAt ? new Date(b.chapterId.createdAt).getTime() : 0;
+          return at - bt;
+        });
+
+        const labelOrigin = (o) => (o === 'build' ? 'Build' : 'Manual');
+        const originColor = (o) => (o === 'build' ? 'rgba(155,89,182,0.22)' : 'rgba(46,204,113,0.18)');
+
+        return (
+          <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+            {chapters.map(ch => {
+              const chapterTitle = ch?.chapterId?.title;
+              const origin = ch?.chapterId?.origin || 'manual';
+              const originText = labelOrigin(origin);
+              const courseId = ch?.chapterId?.courseId || ch?.items?.[0]?.courseId || '';
+              return (
+                <div key={String(ch?.chapterId?._id || ch.chapterNumber)} style={{
+                  textAlign: 'right', direction: 'rtl',
+                  padding: 12, borderRadius: 14,
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.12)',
+                  color: '#fff'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ fontWeight: 900 }}>
+                      فصل {ch.chapterNumber}
+                      {chapterTitle ? ` — ${chapterTitle}` : ''}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button
+                        onClick={() => {
+                          setAddLessonCourseId(String(courseId || ''));
+                          setNewLessonChapter(String(ch.chapterNumber ?? ''));
+                          setNewLessonChapterTitle(String(chapterTitle || ''));
+                          setNewLessonTitle('');
+                          setNewLessonContent('');
+                          setShowAddLesson(true);
+                        }}
+                        disabled={!courseId}
+                        style={{
+                          padding: '6px 10px', borderRadius: 10,
+                          border: '1px solid rgba(255,255,255,0.18)',
+                          background: 'transparent', color: '#fff',
+                          cursor: 'pointer', fontWeight: 900
+                        }}
+                      >
+                        ➕ افزودن درس
+                      </button>
+                      <div style={{
+                        padding: '4px 10px', borderRadius: 999,
+                        background: originColor(origin),
+                        border: '1px solid rgba(255,255,255,0.14)',
+                        fontWeight: 900, fontSize: 12,
+                      }}>{originText}</div>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+                    {ch.items.sort((a, b) => {
+                      const at = a?.createdAt ? new Date(a.createdAt).getTime() : 0;
+                      const bt = b?.createdAt ? new Date(b.createdAt).getTime() : 0;
+                      return at - bt;
+                    }).map(l => {
+                      const hasContent = !!(l.title && String(l.title).trim());
+                      return (
+                        <div key={l._id} style={{
+                          padding: 10,
+                          borderRadius: 12,
+                          background: 'rgba(0,0,0,0.22)',
+                          border: '1px solid rgba(255,255,255,0.10)'
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+                            <button onClick={() => openLesson(l._id)} style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              padding: 0, color: '#fff', textAlign: 'right', direction: 'rtl', flex: 1
+                            }}>
+                              <div style={{ fontWeight: 900 }}>{l.title}</div>
+                              <div style={{ opacity: 0.7, marginTop: 4 }}>
+                                {hasContent ? 'دارای محتوا' : 'بدون محتوا'}
+                              </div>
+                            </button>
+                            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                              <button onClick={() => openMissionManager(l._id)} disabled={busyKey === `mission-open-${l._id}`} style={{
+                                padding: '8px 10px', borderRadius: 10,
+                                border: 'none', cursor: 'pointer', fontWeight: 900,
+                                background: 'rgba(78,205,196,0.16)', color: '#fff'
+                              }}>
+                                {busyKey === `mission-open-${l._id}` ? '...' : '🎯'}
+                              </button>
+                              <button onClick={() => removeLesson(l._id)} disabled={busyKey === `lesson-del-${l._id}`} style={{
+                                padding: '8px 10px', borderRadius: 10,
+                                border: 'none', cursor: 'pointer', fontWeight: 900,
+                                background: 'rgba(255,77,77,0.18)', color: '#fff'
+                              }}>
+                                {busyKey === `lesson-del-${l._id}` ? '...' : '🗑️'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
+              );
+            })}
+          </div>
+        );
+      })()}
+
+      {showMissionManager && (
+        <div onClick={() => { setShowMissionManager(false); }} style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh',
+          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3004,
+          padding: 16
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            width: 'min(980px, 100%)',
+            maxHeight: '85vh',
+            overflow: 'auto',
+            background: 'rgba(20,24,40,0.95)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 16,
+            padding: 14,
+            color: '#fff'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+              <div style={{ direction: 'rtl', fontWeight: 900 }}>
+                مدیریت ماموریت‌ها
+                {missionManagerLesson?.title ? ` — ${missionManagerLesson.title}` : ''}
               </div>
-            );
-          })}
+              <button onClick={() => setShowMissionManager(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>
+                {Array.isArray(missionManagerLesson?.missions) ? `${missionManagerLesson.missions.length} ماموریت` : '0 ماموریت'}
+              </div>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                <button onClick={autoGenerateMissionsFromLessonContent} disabled={busyKey === 'mission-auto'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                  {busyKey === 'mission-auto' ? 'در حال ساخت...' : '✨ استخراج خودکار از متن درس'}
+                </button>
+                <button onClick={() => { setMissionJson('[]'); }} style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>
+                  پاک کردن
+                </button>
+                <button onClick={saveMissionManager} disabled={busyKey === 'mission-save'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                  {busyKey === 'mission-save' ? 'در حال ذخیره...' : '💾 ذخیره'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
+              <div style={{ direction: 'rtl', fontWeight: 900 }}>لیست ماموریت‌ها</div>
+              {(() => {
+                let arr = [];
+                try {
+                  const p = JSON.parse(missionJson || '[]');
+                  arr = Array.isArray(p) ? p : [];
+                } catch {
+                  arr = [];
+                }
+                if (!arr.length) return <div style={{ marginTop: 10, direction: 'rtl', opacity: 0.75 }}>هنوز ماموریتی ثبت نشده.</div>;
+                return (
+                  <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+                    {arr.map((m, idx) => (
+                      <div key={idx} style={{
+                        padding: 10, borderRadius: 12,
+                        background: 'rgba(0,0,0,0.25)',
+                        border: '1px solid rgba(255,255,255,0.10)'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+                          <div style={{ direction: 'rtl', flex: 1, fontWeight: 800, opacity: 0.95 }}>
+                            {idx + 1}. {m?.type || 'mission'} / stage {m?.stage ?? '-'}
+                          </div>
+                          <button onClick={() => removeMissionAt(idx)} style={{
+                            padding: '6px 10px', borderRadius: 10,
+                            border: 'none', cursor: 'pointer', fontWeight: 900,
+                            background: 'rgba(255,77,77,0.18)', color: '#fff'
+                          }}>
+                            🗑️
+                          </button>
+                        </div>
+                        {m?.q && (
+                          <div style={{ marginTop: 6, direction: 'rtl', opacity: 0.8 }}>
+                            {String(m.q).slice(0, 160)}{String(m.q).length > 160 ? '…' : ''}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+            </div>
+
+            <div style={{ marginTop: 12 }}>
+              <div style={{ direction: 'rtl', fontWeight: 900, marginBottom: 8 }}>ویرایش JSON ماموریت‌ها</div>
+              <textarea value={missionJson} onChange={(e) => setMissionJson(e.target.value)} style={{
+                width: '100%', minHeight: 260,
+                padding: 10, borderRadius: 10,
+                border: '1px solid rgba(255,255,255,0.18)',
+                background: 'rgba(255,255,255,0.06)',
+                color: '#fff', direction: 'ltr',
+                fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                fontSize: 12
+              }} />
+            </div>
+          </div>
         </div>
       )}
 
@@ -854,7 +1254,7 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
             </div>
 
             <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, alignItems: 'center' }}>
-              <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>شماره</div>
+              <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>شماره فصل</div>
               <input value={newLessonChapter} onChange={(e) => setNewLessonChapter(e.target.value)} style={{ padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
 
               <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>عنوان فصل</div>
@@ -871,7 +1271,7 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
               <button onClick={() => setShowAddLesson(false)} style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>
                 انصراف
               </button>
-              <button onClick={() => addLesson(course.courseId)} disabled={busyKey === 'lesson-create'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+              <button onClick={() => addLesson(addLessonCourseId || course.courseId)} disabled={busyKey === 'lesson-create'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
                 {busyKey === 'lesson-create' ? 'در حال افزودن...' : '➕ افزودن درس'}
               </button>
             </div>
@@ -1042,7 +1442,23 @@ export default function App() {
     setFeedback(null);
     setFillVal("");
     setSelectedWords([]);
-    if (m?.type === "order") setDragWords(shuffle(m.words));
+    if (m?.type === "order") {
+      const wordsFromQuestion = () => {
+        const rawQ = String(m?.q || '').trim();
+        if (!rawQ) return [];
+        const parts = rawQ.split(/[:：]/);
+        const tail = String(parts.length > 1 ? parts.slice(1).join(':') : '').trim();
+        if (!tail || !/[-،,]/.test(tail)) return [];
+        return tail
+          .split(/\s*(?:-|,|،|؛|\|)\s*/g)
+          .map(s => String(s || '').trim())
+          .map(s => s.replace(/[.\u06d4]+$/g, '').trim())
+          .filter(Boolean);
+      };
+
+      const words = Array.isArray(m?.words) ? m.words : wordsFromQuestion();
+      setDragWords(shuffle(words));
+    }
     setTimeLeft(30);
     setTimerActive(true);
   }
@@ -1051,6 +1467,7 @@ export default function App() {
     clearTimeout(timerRef.current);
     setTimerActive(false);
     const m = missions[missionIdx];
+    const safeOptions = Array.isArray(m?.options) ? m.options : [];
     let correct = false;
     if (timeout) {
       correct = false;
@@ -1071,8 +1488,12 @@ export default function App() {
     setMissionHistory(prev => [...prev, {
       question: m.q,
       correct,
-      userAnswer: m.type === 'mcq' ? (timeout ? 'بی‌پاسخ' : (m.options[value] || value)) : (value || 'بی‌پاسخ'),
-      correctAnswer: m.type === 'mcq' ? m.options[m.answer] : (m.blank || m.answer)
+      userAnswer: m.type === 'mcq'
+        ? (timeout ? 'بی ‌پاسخ' : (safeOptions?.[value] ?? value))
+        : (value || 'بی ‌پاسخ'),
+      correctAnswer: m.type === 'mcq'
+        ? (safeOptions?.[m.answer] ?? m.answer)
+        : (m.blank || m.answer)
     }]);
     if (correct && wasfast) setGameStats(g => ({ ...g, fastAnswers: g.fastAnswers + 1 }));
     setFeedback({ correct, exp: m.exp, stars: starEarned, timeout });
@@ -1176,17 +1597,21 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
 
   if (!token) {
     return (
-      <AuthScreen
+      <>
+        <GlobalStyles />
+        <AuthScreen
         mode={authMode}
         setMode={setAuthMode}
         onLogin={handleLogin}
         onRegister={handleRegister}
-      />
+        />
+      </>
     );
   }
 
   if (screen === "home" || screen === "chapters" || screen === "hall") return (
     <>
+      <GlobalStyles />
       <HomeScreen
         onStart={(id) => {
           setActiveSubject(id);
@@ -1256,13 +1681,16 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
   );
 
   if (screen === "dashboard") return (
-    <DashboardScreen
-      token={token}
-      user={user}
-      SUBJECTS={SUBJECTS}
-      api={api}
-      onBack={() => setScreen('home')}
-    />
+    <>
+      <GlobalStyles />
+      <DashboardScreen
+        token={token}
+        user={user}
+        SUBJECTS={SUBJECTS}
+        api={api}
+        onBack={() => setScreen('home')}
+      />
+    </>
   );
 
   if (screen === "upload") return <UploadScreen
@@ -1695,6 +2123,24 @@ function UploadScreen({ uploadedText, setUploadedText, uploadSubject, setUploadS
   );
 }
 
+function StarBurst({ count = 1 }) {
+  const safe = Math.max(0, Math.min(3, Number(count) || 0));
+  if (!safe) return null;
+  return (
+    <div style={{ marginTop: 10, display: 'flex', justifyContent: 'center', gap: 6 }}>
+      {Array.from({ length: safe }).map((_, i) => (
+        <div key={i} style={{
+          width: 18,
+          height: 18,
+          borderRadius: 6,
+          background: 'linear-gradient(135deg,#FFD700,#FF8C00)',
+          boxShadow: '0 6px 18px rgba(255,215,0,0.25)',
+        }} />
+      ))}
+    </div>
+  );
+}
+
 // ─── GAME SCREEN ──────────────────────────────────────────────────────────
 function GameScreen({
   subject, mission, missionIdx, totalMissions, stage, totalStages,
@@ -1706,6 +2152,32 @@ function GameScreen({
   const progress = (missionIdx / totalMissions) * 100;
   const timerPct = (timeLeft / 30) * 100;
   const timerColor = timeLeft > 15 ? "#4ECDC4" : timeLeft > 8 ? "#FFD700" : "#FF6B6B";
+  const safeMissionOptions = Array.isArray(mission?.options) ? mission.options : [];
+  const safeMissionWords = Array.isArray(mission?.words) ? mission.words : [];
+
+  const derivedOrderWordsFromQuestion = () => {
+    const rawQ = String(mission?.q || '').trim();
+    if (!rawQ) return [];
+    const parts = rawQ.split(/[:：]/);
+    const tail = String(parts.length > 1 ? parts.slice(1).join(':') : '').trim();
+    if (!tail || !/[-،,]/.test(tail)) return [];
+    return tail
+      .split(/\s*(?:-|,|،|؛|\|)\s*/g)
+      .map(s => String(s || '').trim())
+      .map(s => s.replace(/[.\u06d4]+$/g, '').trim())
+      .filter(Boolean);
+  };
+
+  const orderWords = safeMissionWords.length ? safeMissionWords : derivedOrderWordsFromQuestion();
+
+  const orderQuestion = (() => {
+    const rawQ = String(mission?.q || '').trim();
+    const parts = rawQ.split(/[:：]/);
+    if (parts.length <= 1) return rawQ;
+    const tail = String(parts.slice(1).join(':')).trim();
+    if (!tail || !/[-،,]/.test(tail)) return rawQ;
+    return String(parts[0] || '').trim();
+  })();
 
   function toggleWord(w, idx) {
     if (feedback) return;
@@ -1850,14 +2322,14 @@ function GameScreen({
             textAlign: subject?.dir === "ltr" ? "left" : "right",
             flex: 1
           }}>
-            {mission.q}
+            {mission.type === 'order' ? orderQuestion : mission.q}
           </div>
         </div>
 
         {/* MCQ */}
         {mission.type === "mcq" && !feedback && (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            {mission.options.map((opt, i) => (
+            {safeMissionOptions.map((opt, i) => (
               <button key={i} className="opt-btn" onClick={() => onAnswer(i)} style={{
                 padding: "14px 18px",
                 background: "rgba(255,255,255,0.08)",
@@ -1926,6 +2398,7 @@ function GameScreen({
             </div>
             {/* Available */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+              {Array.isArray(dragWords) ? dragWords : shuffle(orderWords).map(String).map((w, i) => ({ w, i })) && []}
               {dragWords.map((w, i) => (
                 <button key={i} className="word-chip" onClick={() => toggleWord(w, i)} style={{
                   padding: "6px 14px",
@@ -1952,7 +2425,7 @@ function GameScreen({
             {/* MCQ answer reveal */}
             {mission.type === "mcq" && (
               <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }}>
-                {mission.options.map((opt, i) => {
+                {safeMissionOptions.map((opt, i) => {
                   const isCorrect = i === mission.answer;
                   return (
                     <div key={i} style={{
@@ -2682,6 +3155,7 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
 // ─── STUDY SCREEN ─────────────────────────────────────────────────────────
 function StudyScreen({ subject, lesson, onBack, onPlay }) {
   const c = subject?.color || COLORS.persian;
+  const containerWidth = 'min(920px, 100%)';
 
   const playAudio = (text) => {
     if ('speechSynthesis' in window) {
@@ -2705,21 +3179,21 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
   return (
     <div style={{
       minHeight: "100vh", background: `linear-gradient(160deg, ${c.dark} 0%, #1a1a2e 100%)`,
-      fontFamily: "'Vazirmatn','Segoe UI',sans-serif", padding: "24px 20px",
+      fontFamily: "'Vazirmatn','Segoe UI',sans-serif", padding: "clamp(14px, 2.5vw, 28px) clamp(12px, 2.8vw, 28px)",
       display: "flex", flexDirection: "column", alignItems: "center",
     }}>
       <style>{`
         @keyframes slideUp { 0%{transform:translateY(30px);opacity:0} 100%{transform:translateY(0);opacity:1} }
       `}</style>
 
-      <div style={{ width: '100%', maxWidth: 480, display: 'flex', justifyContent: 'space-between', marginBottom: 20 }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: "#ccc", fontSize: 18, cursor: "pointer" }}>← بازگشت</button>
-        <div style={{ color: "#FFD700", fontWeight: "bold", fontSize: 16 }}>{subject?.label} 📖</div>
+      <div style={{ width: containerWidth, display: 'flex', justifyContent: 'space-between', marginBottom: 20, gap: 10, alignItems: 'center' }}>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: "#ccc", fontSize: 18, cursor: "pointer", whiteSpace: 'nowrap' }}>← بازگشت</button>
+        <div style={{ color: "#FFD700", fontWeight: "bold", fontSize: 16, textAlign: 'right' }}>{subject?.label} 📖</div>
       </div>
 
       <div style={{
-        width: "100%", maxWidth: 480, background: "rgba(255,255,255,0.05)", boxSizing: 'border-box',
-        border: "1px solid rgba(255,255,255,0.1)", borderRadius: 24, padding: "24px",
+        width: containerWidth, background: "rgba(255,255,255,0.05)", boxSizing: 'border-box',
+        border: "1px solid rgba(255,255,255,0.1)", borderRadius: 24, padding: "clamp(14px, 2.4vw, 26px)",
         boxShadow: "0 10px 30px rgba(0,0,0,0.5)", animation: "slideUp 0.5s ease-out",
         position: 'relative'
       }}>
@@ -2729,9 +3203,9 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
           display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16
         }} title="پخش صوتی">🔊</button>
 
-        <h3 style={{ color: '#fff', fontSize: 22, marginTop: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 10 }}>{lesson?.title || 'آموزش'}</h3>
+        <h3 style={{ color: '#fff', fontSize: 'clamp(18px, 2.6vw, 24px)', marginTop: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 10 }}>{lesson?.title || 'آموزش'}</h3>
         <div style={{
-          color: '#e0e0e0', fontSize: 18, lineHeight: 2, textAlign: 'justify',
+          color: '#e0e0e0', fontSize: 'clamp(15px, 1.6vw, 18px)', lineHeight: 2, textAlign: 'justify',
           textShadow: '0 1px 2px rgba(0,0,0,0.5)',
           direction: subject?.dir || 'rtl'
         }}>
@@ -2754,10 +3228,10 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
       </div>
 
       <button onClick={onPlay} style={{
-        marginTop: 24, width: "100%", maxWidth: 480, padding: "18px", boxSizing: 'border-box',
+        marginTop: 24, width: containerWidth, padding: "clamp(14px, 2.2vw, 18px)", boxSizing: 'border-box',
         background: `linear-gradient(135deg, ${c.bg}, ${c.dark})`,
         border: "none", borderRadius: 20, color: "#fff",
-        fontSize: 18, fontWeight: 900, cursor: "pointer",
+        fontSize: 'clamp(16px, 2vw, 18px)', fontWeight: 900, cursor: "pointer",
         boxShadow: `0 8px 24px ${c.bg}44`, animation: "slideUp 0.6s ease-out"
       }}>
         حالا بریم ماموریت رو انجام بدیم! 🚀

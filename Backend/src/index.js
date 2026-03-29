@@ -7,6 +7,8 @@ const dotenv = require('dotenv');
 const mongoose = require('mongoose');
 const path = require('path');
 
+const Course = require('./models/Course');
+
 dotenv.config();
 
 const app = express();
@@ -18,6 +20,19 @@ mongoose.connect(mongoUri)
   .then(() => console.log('Connected to MongoDB'))
   .catch(err => console.error('Error connecting to MongoDB:', err));
 
+mongoose.connection.once('open', async () => {
+  if (String(process.env.DROP_LEGACY_COURSE_INDEXES || '').toLowerCase() !== 'true') return;
+  try {
+    // Drop the legacy unique index grade_1_subject_1 if it exists.
+    // This index conflicts with allowing multiple build rows per grade+subject.
+    await Course.collection.dropIndex('grade_1_subject_1');
+    console.log('Dropped legacy index: courses.grade_1_subject_1');
+  } catch (err) {
+    // Ignore if missing or cannot be dropped.
+    console.log('Legacy index drop skipped:', err?.message || err);
+  }
+});
+
 const corsOptions = {
   origin: process.env.FRONTEND_URL
     ? [process.env.FRONTEND_URL, 'http://localhost:5173']
@@ -26,7 +41,7 @@ const corsOptions = {
 };
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(cors(corsOptions));
 // Use crossOriginResourcePolicy({ policy: "cross-origin" }) with Helmet to allow displaying PDFs in iframes/objects
 app.use(helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }));

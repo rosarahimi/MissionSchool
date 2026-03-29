@@ -5,6 +5,7 @@ const chapterSchema = new mongoose.Schema({
   number: { type: Number, required: true },
   title: { type: String, required: true },
   summary: { type: String },
+  origin: { type: String, enum: ['build', 'manual'], default: 'manual', index: true },
   source: {
     chunkIds: [{ type: mongoose.Schema.Types.ObjectId }],
     chunkRange: {

@@ -21,6 +21,7 @@ const lessonSchema = new mongoose.Schema({
   orderIndex: { type: Number, default: 0 },
   title: { type: String, required: true },
   content: { type: String, required: true },
+  origin: { type: String, enum: ['build', 'manual'], default: 'manual', index: true },
   missions: [missionSchema],
   source: {
     chunkIds: [{ type: mongoose.Schema.Types.ObjectId }],
@@ -29,6 +30,6 @@ const lessonSchema = new mongoose.Schema({
       to: Number,
     },
   }
-});
+}, { timestamps: true });
 
 module.exports = mongoose.model('Lesson', lessonSchema);
