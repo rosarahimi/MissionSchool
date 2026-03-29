@@ -85,13 +85,37 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState('');
   const [status, setStatus] = useState(null);
+  const [extractJob, setExtractJob] = useState(null);
   const [lessons, setLessons] = useState([]);
+  const [showAddLesson, setShowAddLesson] = useState(false);
+  const [showPdfUpload, setShowPdfUpload] = useState(false);
+  const [dashboardPdfFile, setDashboardPdfFile] = useState(null);
+  const dashboardPdfRef = useRef();
+
+  const [showMissionExtract, setShowMissionExtract] = useState(false);
+  const [missionTargetLessonId, setMissionTargetLessonId] = useState('');
+  const [pageText, setPageText] = useState('');
+  const [pageImageFile, setPageImageFile] = useState(null);
+  const dashboardPageFileRef = useRef();
+
+  const [showCourseManager, setShowCourseManager] = useState(false);
+  const [allCourses, setAllCourses] = useState([]);
+  const [newCourseGrade, setNewCourseGrade] = useState(3);
+  const [newCourseSubject, setNewCourseSubject] = useState('persian');
+  const [newCourseTitle, setNewCourseTitle] = useState('');
+
+  const [newLessonChapter, setNewLessonChapter] = useState('');
+  const [newLessonChapterTitle, setNewLessonChapterTitle] = useState('');
+  const [newLessonTitle, setNewLessonTitle] = useState('');
+  const [newLessonContent, setNewLessonContent] = useState('');
   const [selectedLessonId, setSelectedLessonId] = useState(null);
   const [selectedLesson, setSelectedLesson] = useState(null);
+  const [editChapter, setEditChapter] = useState('');
+  const [editChapterTitle, setEditChapterTitle] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
 
-  const isTeacher = user?.role === 'teacher';
+  const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
 
   const loadStatus = useCallback(async () => {
     if (!token) return;
@@ -104,29 +128,319 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     }
   }, [token, api, grade, subject]);
 
+  async function createCourse() {
+    setBusyKey('course-create');
+    try {
+      const payload = {
+        grade: Number(newCourseGrade),
+        subject: newCourseSubject,
+        ...(String(newCourseTitle || '').trim() ? { title: String(newCourseTitle || '').trim() } : {}),
+      };
+      const res = await api.createCourse(token, payload);
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
+      setNewCourseTitle('');
+      await loadAllCourses();
+      if (Number(res.grade) === Number(grade) && String(res.subject) === String(subject)) {
+        await loadStatus();
+      }
+    } finally {
+      setBusyKey('');
+    }
+  }
+
+  async function removeCourse(courseId) {
+    if (!confirm('این Course حذف شود؟ (فصل‌ها و درس‌های مرتبط هم حذف می‌شوند)')) return;
+    setBusyKey(`course-del-${courseId}`);
+    try {
+      const res = await api.deleteCourse(token, courseId);
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
+      await loadAllCourses();
+      await loadStatus();
+      setLessons([]);
+      setSelectedLesson(null);
+      setSelectedLessonId(null);
+    } finally {
+      setBusyKey('');
+    }
+  }
+
   useEffect(() => {
     loadStatus();
   }, [loadStatus]);
 
-  async function loadLessonsForCourse(courseId) {
-    const list = await api.curriculumLessons(token, { courseId });
+  const loadAllCourses = useCallback(async () => {
+    if (!token) return;
+    const list = await api.curriculumCourses(token);
+    setAllCourses(Array.isArray(list) ? list : []);
+  }, [token, api]);
+
+  async function loadLessonsForCourse(courseId, opts = {}) {
+    const list = await api.curriculumLessons(token, { courseId, chapterId: opts.chapterId, includeUnlinked: true });
     setLessons(Array.isArray(list) ? list : []);
   }
 
   async function openLesson(lessonId) {
     setSelectedLessonId(lessonId);
-    const data = await api.getLessonDetails(token, lessonId);
+    const data = await api.curriculumLessonDetails(token, lessonId);
     setSelectedLesson(data);
+    setEditChapter(data?.chapter ?? '');
+    setEditChapterTitle(data?.chapterId?.title || '');
     setEditTitle(data?.title || '');
     setEditContent(data?.content || '');
+
+    setMissionTargetLessonId(lessonId);
+  }
+
+  async function uploadTextbookPdf() {
+    if (!dashboardPdfFile) return;
+    const formData = new FormData();
+    formData.append('subject', subject);
+    formData.append('grade', String(grade));
+    formData.append('pdf', dashboardPdfFile);
+
+    setBusyKey('pdf-upload');
+    try {
+      const res = await api.curriculumTextbookUpload(token, formData);
+      if (!res?.success) {
+        alert(res?.error || 'Upload failed');
+        return;
+      }
+      alert(res.message);
+      setDashboardPdfFile(null);
+      setShowPdfUpload(false);
+      await loadStatus();
+    } finally {
+      setBusyKey('');
+    }
+  }
+
+  async function deleteTextbookPdf() {
+    if (!confirm('PDF کتاب حذف شود؟')) return;
+    setBusyKey('pdf-delete');
+    try {
+      const res = await api.curriculumTextbookDelete(token, subject, grade);
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
+      setDashboardPdfFile(null);
+      await loadStatus();
+    } finally {
+      setBusyKey('');
+    }
+  }
+
+  async function extractMissionsFromPage() {
+    if (!missionTargetLessonId) {
+      alert('اول یک درس را برای ذخیره ماموریت انتخاب کن');
+      return;
+    }
+    if (!pageText.trim()) {
+      alert('متن صفحه خالی است');
+      return;
+    }
+
+    setBusyKey('mission-extract');
+    try {
+      const prompt = `You are an educational game designer for children aged 8-12.
+Given this text from a ${SUBJECTS.find(s => s.id === subject)?.label} textbook:
+
+"""
+${pageText}
+"""
+
+Create exactly 8 educational missions as a JSON array. Each mission must have:
+- type: "mcq" | "fill" | "order"
+- stage: 1, 2, or 3 (stages 1-2 have 3 missions each, stage 3 has 2)
+- q: question text
+- For mcq: options (array of 4 strings), answer (index 0-3)
+- For fill: blank (the answer word), hint (one short hint)
+- For order: words (array of 4-5 words shuffled), answer (correct sentence)
+- exp: short explanation (1-2 sentences) in the same language as the textbook
+
+Return ONLY valid JSON array, no markdown, no extra text.`;
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1000,
+          messages: [{ role: 'user', content: prompt }],
+        }),
+      });
+      const data = await res.json();
+      const raw = data.content?.map(i => i.text || "").join("") || "[]";
+      const clean = raw.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        alert('ماموریت معتبر تولید نشد');
+        return;
+      }
+
+      const saveRes = await api.updateLesson(token, missionTargetLessonId, { missions: parsed });
+      if (saveRes?.error) {
+        alert(saveRes.error);
+        return;
+      }
+
+      alert('ماموریت‌ها ذخیره شدند');
+      setShowMissionExtract(false);
+      setPageText('');
+      setPageImageFile(null);
+      await loadLessonsForCourse(saveRes.courseId || (status?.courses?.[0]?.courseId));
+    } catch (e) {
+      alert('خطا در ساخت/ذخیره ماموریت');
+    } finally {
+      setBusyKey('');
+    }
+  }
+
+  async function ocrPageImageToText(file) {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('فقط عکس');
+      return;
+    }
+    setPageImageFile(file);
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result.split(',')[1];
+      const mediaType = file.type;
+      setBusyKey('mission-ocr');
+      try {
+        const res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1000,
+            messages: [{
+              role: 'user',
+              content: [
+                { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+                { type: 'text', text: 'Please extract all text from this textbook page. Return only the text, preserving paragraphs. No extra commentary.' }
+              ]
+            }]
+          }),
+        });
+        const data = await res.json();
+        const text = data.content?.map(i => i.text || "").join("") || "";
+        setPageText(text);
+      } catch {
+        alert('خطا در پردازش تصویر');
+      } finally {
+        setBusyKey('');
+      }
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function removeLesson(lessonId) {
+    if (!confirm('این درس حذف شود؟')) return;
+    setBusyKey(`lesson-del-${lessonId}`);
+    try {
+      const res = await api.deleteLesson(token, lessonId);
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
+      setLessons(prev => prev.filter(l => l._id !== lessonId));
+      if (selectedLessonId === lessonId) {
+        setSelectedLessonId(null);
+        setSelectedLesson(null);
+      }
+      await loadStatus();
+    } finally {
+      setBusyKey('');
+    }
+  }
+
+  async function addLesson(courseId) {
+    const ch = Number(String(newLessonChapter).trim());
+    const chapterTitle = String(newLessonChapterTitle || '').trim();
+    const title = String(newLessonTitle || '').trim();
+    const content = String(newLessonContent || '').trim();
+    if (!Number.isFinite(ch)) {
+      alert('شماره درس/فصل را درست وارد کن');
+      return;
+    }
+    if (!title || !content) {
+      alert('عنوان و محتوا الزامی است');
+      return;
+    }
+    setBusyKey('lesson-create');
+    try {
+      const payload = {
+        grade,
+        subject,
+        courseId,
+        chapter: ch,
+        orderIndex: ch,
+        chapterTitle,
+        title,
+        content,
+        missions: [],
+      };
+      const res = await api.createLesson(token, payload);
+      if (res?.error) {
+        alert(res.error);
+        return;
+      }
+      setNewLessonChapter('');
+      setNewLessonChapterTitle('');
+      setNewLessonTitle('');
+      setNewLessonContent('');
+      setShowAddLesson(false);
+      await loadLessonsForCourse(courseId);
+      await loadStatus();
+    } finally {
+      setBusyKey('');
+    }
   }
 
   async function runExtract(course) {
     setBusyKey('extract');
+    setExtractJob(null);
     try {
       const res = await api.extractTextbook(token, { grade: course.grade, subject: course.subject, ocrLang: 'fas' });
-      if (!res.success) alert(res.error || 'خطا در استخراج متن');
-      await loadStatus();
+      if (!res.success) {
+        alert(res.error || 'خطا در استخراج متن');
+        return;
+      }
+
+      if (!res.jobId) {
+        await loadStatus();
+        return;
+      }
+
+      const jobId = res.jobId;
+      let keep = true;
+      while (keep) {
+        const j = await api.getExtractJob(token, jobId);
+        if (j?.error) {
+          alert(j.error);
+          break;
+        }
+        setExtractJob(j);
+        if (j?.status === 'done') {
+          await loadStatus();
+          keep = false;
+          break;
+        }
+        if (j?.status === 'error') {
+          alert(j?.error || 'خطا در استخراج متن');
+          keep = false;
+          break;
+        }
+        await new Promise(r => setTimeout(r, 1000));
+      }
     } finally {
       setBusyKey('');
     }
@@ -148,9 +462,23 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     if (!selectedLessonId) return;
     setBusyKey('save');
     try {
-      const res = await api.updateLesson(token, selectedLessonId, { title: editTitle, content: editContent });
+      const chapterNum = editChapter === '' ? undefined : Number(editChapter);
+      if (editChapter !== '' && !Number.isFinite(chapterNum)) {
+        alert('شماره درس/فصل نامعتبر است');
+        return;
+      }
+      const res = await api.updateLesson(token, selectedLessonId, { title: editTitle, content: editContent, chapter: chapterNum, orderIndex: chapterNum });
       if (res.error) alert(res.error);
       setSelectedLesson(res);
+
+      if (selectedLesson?.chapterId && editChapterTitle !== undefined) {
+        const chapterTitle = String(editChapterTitle || '').trim();
+        if (chapterTitle) {
+          const chRes = await api.updateChapter(token, selectedLesson.chapterId, { title: chapterTitle });
+          if (chRes?.error) alert(chRes.error);
+        }
+      }
+
       await loadStatus();
       if (selectedLesson?.courseId) await loadLessonsForCourse(selectedLesson.courseId);
     } finally {
@@ -167,6 +495,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     );
   }
 
+  const statusMessage = status?.message || status?.error;
   const courses = status?.courses || [];
   const course = courses[0];
 
@@ -175,16 +504,245 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
       <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>← برگشت</button>
 
       <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <select value={grade} onChange={(e) => setGrade(Number(e.target.value))} style={{ padding: 10, borderRadius: 10 }}>
-          <option value={3}>پایه سوم</option>
-        </select>
+        <input type="number" value={grade} onChange={(e) => setGrade(Number(e.target.value))} style={{ padding: 10, borderRadius: 10, width: 120 }} />
         <select value={subject} onChange={(e) => setSubject(e.target.value)} style={{ padding: 10, borderRadius: 10 }}>
           {SUBJECTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
         </select>
+        <button onClick={async () => { await loadAllCourses(); setShowCourseManager(true); }} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 800 }}>
+          📚 مقاطع/دروس
+        </button>
         <button onClick={loadStatus} disabled={loading} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 800 }}>
           {loading ? '...' : '🔄 بروزرسانی'}
         </button>
       </div>
+
+      {showCourseManager && (
+        <div onClick={() => setShowCourseManager(false)} style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh',
+          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3005,
+          padding: 16
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            width: 'min(900px, 100%)',
+            maxHeight: '85vh',
+            overflow: 'auto',
+            background: 'rgba(20,24,40,0.95)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 16,
+            padding: 14,
+            color: '#fff'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+              <div style={{ direction: 'rtl', fontWeight: 900 }}>مدیریت مقاطع و دروس (Course)</div>
+              <button onClick={() => setShowCourseManager(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
+              <div style={{ direction: 'rtl', fontWeight: 900 }}>افزودن Course جدید</div>
+              <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, alignItems: 'center' }}>
+                <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>پایه</div>
+                <input type="number" value={newCourseGrade} onChange={(e) => setNewCourseGrade(Number(e.target.value))} style={{ padding: 10, borderRadius: 10 }} />
+
+                <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>درس</div>
+                <select value={newCourseSubject} onChange={(e) => setNewCourseSubject(e.target.value)} style={{ padding: 10, borderRadius: 10 }}>
+                  {SUBJECTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                </select>
+
+                <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>عنوان (اختیاری)</div>
+                <input value={newCourseTitle} onChange={(e) => setNewCourseTitle(e.target.value)} style={{ padding: 10, borderRadius: 10, direction: 'rtl' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+                <button onClick={createCourse} disabled={busyKey === 'course-create'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                  {busyKey === 'course-create' ? '...' : '➕ افزودن'}
+                </button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
+              <div style={{ direction: 'rtl', fontWeight: 900 }}>لیست Courseها</div>
+              {allCourses.length === 0 ? (
+                <div style={{ marginTop: 10, direction: 'rtl', opacity: 0.8 }}>هنوز Course ای ثبت نشده.</div>
+              ) : (
+                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+                  {allCourses.map(c => (
+                    <div key={c._id} style={{
+                      padding: 12,
+                      borderRadius: 14,
+                      background: 'rgba(0,0,0,0.25)',
+                      border: '1px solid rgba(255,255,255,0.12)'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <button onClick={async () => {
+                          setGrade(Number(c.grade));
+                          setSubject(String(c.subject));
+                          setShowCourseManager(false);
+                        }} style={{
+                          background: 'none', border: 'none', cursor: 'pointer',
+                          color: '#fff', fontWeight: 900, direction: 'rtl', textAlign: 'right', padding: 0
+                        }}>
+                          پایه {c.grade} — {SUBJECTS.find(s => s.id === c.subject)?.label || c.subject}
+                          {c.title ? ` | ${c.title}` : ''}
+                        </button>
+                        <button onClick={() => removeCourse(c._id)} disabled={busyKey === `course-del-${c._id}`} style={{
+                          padding: '8px 10px', borderRadius: 10,
+                          border: 'none', cursor: 'pointer', fontWeight: 900,
+                          background: 'rgba(255,77,77,0.18)', color: '#fff'
+                        }}>
+                          {busyKey === `course-del-${c._id}` ? '...' : '🗑️'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {statusMessage && (
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,77,77,0.12)', border: '1px solid rgba(255,77,77,0.25)', direction: 'rtl' }}>
+          {statusMessage}
+        </div>
+      )}
+
+      {course?.courseId && showPdfUpload && (
+        <div onClick={() => setShowPdfUpload(false)} style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh',
+          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3001,
+          padding: 16
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            width: 'min(720px, 100%)',
+            background: 'rgba(20,24,40,0.95)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 16,
+            padding: 14,
+            color: '#fff'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+              <div style={{ direction: 'rtl', fontWeight: 900 }}>آپلود کل کتاب (PDF)</div>
+              <button onClick={() => setShowPdfUpload(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            {course?.pdf?.filename && (
+              <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', direction: 'rtl' }}>
+                <div style={{ fontWeight: 900 }}>فایل فعلی</div>
+                <div style={{ marginTop: 6, opacity: 0.85 }}>{course.pdf.filename}</div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
+                  <button onClick={() => {
+                    const base = (import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/$/, '');
+                    window.open(`${base}/api/curriculum/textbooks/pdf/${subject}/${grade}`, '_blank');
+                  }} style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>
+                    👁️ مشاهده
+                  </button>
+                  <button onClick={deleteTextbookPdf} disabled={busyKey === 'pdf-delete'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', background: 'rgba(255,77,77,0.18)', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>
+                    {busyKey === 'pdf-delete' ? '...' : '🗑️ حذف'}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div onClick={() => dashboardPdfRef.current?.click()} style={{
+              marginTop: 14,
+              width: '100%',
+              border: '2px dashed #FFD700',
+              borderRadius: 16,
+              padding: '20px 14px',
+              cursor: 'pointer',
+              textAlign: 'center',
+              background: 'rgba(255,215,0,0.05)'
+            }}>
+              <div style={{ fontSize: 34 }}>{dashboardPdfFile ? '📄' : '📁'}</div>
+              <div style={{ direction: 'rtl', marginTop: 6, opacity: 0.9 }}>
+                {dashboardPdfFile ? dashboardPdfFile.name : 'برای انتخاب فایل PDF کلیک کن'}
+              </div>
+              <input ref={dashboardPdfRef} type="file" accept="application/pdf" onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                if (f.type !== 'application/pdf') {
+                  alert('لطفا فایل PDF انتخاب کنید.');
+                  return;
+                }
+                setDashboardPdfFile(f);
+              }} style={{ display: 'none' }} />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+              <button onClick={() => setShowPdfUpload(false)} style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>
+                انصراف
+              </button>
+              <button onClick={uploadTextbookPdf} disabled={busyKey === 'pdf-upload' || !dashboardPdfFile} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                {busyKey === 'pdf-upload' ? 'در حال آپلود...' : '⬆️ آپلود'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {course?.courseId && showMissionExtract && (
+        <div onClick={() => setShowMissionExtract(false)} style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh',
+          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3002,
+          padding: 16
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            width: 'min(820px, 100%)',
+            background: 'rgba(20,24,40,0.95)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 16,
+            padding: 14,
+            color: '#fff'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+              <div style={{ direction: 'rtl', fontWeight: 900 }}>استخراج ماموریت از یک صفحه</div>
+              <button onClick={() => setShowMissionExtract(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, alignItems: 'center' }}>
+              <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>درس مقصد</div>
+              <select value={missionTargetLessonId} onChange={(e) => setMissionTargetLessonId(e.target.value)} style={{ padding: 10, borderRadius: 10 }}>
+                <option value="">انتخاب کن...</option>
+                {lessons.map(l => (
+                  <option key={l._id} value={l._id}>
+                    {l.chapter}. {(l?.chapterId?.title ? `${l.chapterId.title} — ` : '')}{l.title}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <button onClick={() => dashboardPageFileRef.current?.click()} disabled={busyKey === 'mission-ocr'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                {busyKey === 'mission-ocr' ? 'در حال OCR...' : '📷 OCR از عکس'}
+              </button>
+              <div style={{ direction: 'rtl', opacity: 0.8 }}>
+                {pageImageFile ? pageImageFile.name : 'اختیاری'}
+              </div>
+              <input ref={dashboardPageFileRef} type="file" accept="image/*" onChange={(e) => ocrPageImageToText(e.target.files?.[0])} style={{ display: 'none' }} />
+            </div>
+
+            <textarea value={pageText} onChange={(e) => setPageText(e.target.value)} placeholder="متن صفحه را اینجا وارد کن..." style={{
+              width: '100%', marginTop: 12, minHeight: 200,
+              padding: 10, borderRadius: 10,
+              border: '1px solid rgba(255,255,255,0.18)',
+              background: 'rgba(255,255,255,0.06)',
+              color: '#fff', direction: 'rtl'
+            }} />
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+              <button onClick={() => setShowMissionExtract(false)} style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>
+                انصراف
+              </button>
+              <button onClick={extractMissionsFromPage} disabled={busyKey === 'mission-extract' || !pageText.trim()} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                {busyKey === 'mission-extract' ? 'در حال ساخت...' : '🚀 ساخت و ذخیره ماموریت'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div style={{ marginTop: 16, padding: 14, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
         {!course ? (
@@ -199,15 +757,38 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                 <div style={{ opacity: 0.8, marginTop: 4 }}>Build: {course.built?.chapters || 0} فصل / {course.built?.lessons || 0} درس</div>
               </div>
               <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <button onClick={() => setShowPdfUpload(true)} disabled={!course.courseId} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                  📄 PDF کتاب
+                </button>
+                <button onClick={() => { setShowMissionExtract(true); setMissionTargetLessonId(selectedLessonId || ''); }} disabled={!course.courseId} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                  🧩 ماموریت از صفحه
+                </button>
                 <button onClick={() => runExtract(course)} disabled={busyKey === 'extract' || !course.pdf?.filename} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
                   {busyKey === 'extract' ? 'در حال استخراج...' : '🧠 Extract متن'}
                 </button>
+                {busyKey === 'extract' && extractJob && (
+                  <div style={{ direction: 'rtl', opacity: 0.9, fontWeight: 800 }}>
+                    {(() => {
+                      const total = typeof extractJob.total === 'number' ? extractJob.total : null;
+                      const current = typeof extractJob.current === 'number' ? extractJob.current : null;
+                      const pct = total && current !== null ? Math.min(100, Math.round((current / Math.max(1, total)) * 100)) : null;
+                      if (pct !== null) return `پیشرفت: ${pct}% (${current}/${total})`;
+                      if (current !== null) return `پیشرفت: ${current}`;
+                      return 'در حال پردازش...';
+                    })()}
+                  </div>
+                )}
                 <button onClick={() => runBuild(course)} disabled={busyKey === 'build' || !course.extracted?.exists} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
                   {busyKey === 'build' ? 'در حال ساخت...' : '🏗️ Build فصل‌ها'}
                 </button>
-                <button onClick={() => loadLessonsForCourse(course.courseId)} disabled={!course.courseId} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-                  📚 لیست درس‌ها
-                </button>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <button onClick={() => loadLessonsForCourse(course.courseId)} disabled={!course.courseId} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                    📚 لیست درس‌ها
+                  </button>
+                  <button onClick={() => setShowAddLesson(true)} disabled={!course.courseId} style={{ width: 44, height: 44, borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                    +
+                  </button>
+                </div>
               </div>
             </div>
           </>
@@ -218,19 +799,80 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
         <div style={{ marginTop: 16, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
           {lessons.map(l => {
             const hasContent = !!(l.title && String(l.title).trim());
+            const chapterTitle = l?.chapterId?.title;
             return (
-              <button key={l._id} onClick={() => openLesson(l._id)} style={{
+              <div key={l._id} style={{
                 textAlign: 'right', direction: 'rtl',
                 padding: 12, borderRadius: 14,
                 background: 'rgba(255,255,255,0.05)',
                 border: '1px solid rgba(255,255,255,0.12)',
-                color: '#fff', cursor: 'pointer'
+                color: '#fff'
               }}>
-                <div style={{ fontWeight: 900 }}>{l.chapter}. {l.title}</div>
-                <div style={{ opacity: 0.7, marginTop: 4 }}>{hasContent ? 'دارای محتوا' : 'بدون محتوا'}</div>
-              </button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+                  <button onClick={() => openLesson(l._id)} style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    padding: 0, color: '#fff', textAlign: 'right', direction: 'rtl', flex: 1
+                  }}>
+                    <div style={{ fontWeight: 900 }}>{l.chapter}. {chapterTitle ? `${chapterTitle} — ` : ''}{l.title}</div>
+                    <div style={{ opacity: 0.7, marginTop: 4 }}>{hasContent ? 'دارای محتوا' : 'بدون محتوا'}</div>
+                  </button>
+                  <button onClick={() => removeLesson(l._id)} disabled={busyKey === `lesson-del-${l._id}`} style={{
+                    padding: '8px 10px', borderRadius: 10,
+                    border: 'none', cursor: 'pointer', fontWeight: 900,
+                    background: 'rgba(255,77,77,0.18)', color: '#fff'
+                  }}>
+                    {busyKey === `lesson-del-${l._id}` ? '...' : '🗑️'}
+                  </button>
+                </div>
+              </div>
             );
           })}
+        </div>
+      )}
+
+      {course?.courseId && showAddLesson && (
+        <div onClick={() => setShowAddLesson(false)} style={{
+          position: 'fixed', top: 0, left: 0, width: '100%', height: '100vh',
+          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3000,
+          padding: 16
+        }}>
+          <div onClick={(e) => e.stopPropagation()} style={{
+            width: 'min(720px, 100%)',
+            background: 'rgba(20,24,40,0.95)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            borderRadius: 16,
+            padding: 14,
+            color: '#fff'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
+              <div style={{ direction: 'rtl', fontWeight: 900 }}>افزودن درس جدید</div>
+              <button onClick={() => setShowAddLesson(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, alignItems: 'center' }}>
+              <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>شماره</div>
+              <input value={newLessonChapter} onChange={(e) => setNewLessonChapter(e.target.value)} style={{ padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
+
+              <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>عنوان فصل</div>
+              <input value={newLessonChapterTitle} onChange={(e) => setNewLessonChapterTitle(e.target.value)} style={{ padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: 'rtl' }} />
+
+              <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>عنوان درس</div>
+              <input value={newLessonTitle} onChange={(e) => setNewLessonTitle(e.target.value)} style={{ padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: 'rtl' }} />
+
+              <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>محتوا</div>
+              <textarea value={newLessonContent} onChange={(e) => setNewLessonContent(e.target.value)} style={{ padding: 10, borderRadius: 10, minHeight: 160, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: 'rtl' }} />
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
+              <button onClick={() => setShowAddLesson(false)} style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>
+                انصراف
+              </button>
+              <button onClick={() => addLesson(course.courseId)} disabled={busyKey === 'lesson-create'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                {busyKey === 'lesson-create' ? 'در حال افزودن...' : '➕ افزودن درس'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -240,6 +882,8 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
             <div style={{ direction: 'rtl', fontWeight: 900 }}>ویرایش درس</div>
             <button onClick={() => { setSelectedLesson(null); setSelectedLessonId(null); }} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
           </div>
+          <input value={editChapter} onChange={(e) => setEditChapter(e.target.value)} style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
+          <input value={editChapterTitle} onChange={(e) => setEditChapterTitle(e.target.value)} style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: 'rtl' }} />
           <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
           <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} style={{ width: '100%', marginTop: 10, minHeight: 220, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: 'rtl' }} />
           <button onClick={saveLesson} disabled={busyKey === 'save'} style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
@@ -253,323 +897,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
 // ─── Demo missions per subject ────────────────────────────────────────────
 function buildMissions(subjectId) {
-  const banks = {
-    persian: [
-      {
-        type: "mcq", stage: 1,
-        q: "کلمه‌ی هم‌معنی «سعی» کدام است؟",
-        options: ["تلاش", "خواب", "دویدن", "غذا"],
-        answer: 0, exp: "سعی در زبان فارسی به معنی تلاش و کوشش است.",
-      },
-      {
-        type: "fill", stage: 1,
-        q: "جمله را کامل کن: «بچه‌ها در حیاط مدرسه ___ بازی می‌کنند.»",
-        blank: "فوتبال", hint: "یک ورزش با توپ", exp: "فوتبال یکی از ورزش‌های پرطرفدار در زنگ ورزش است.",
-      },
-      {
-        type: "mcq", stage: 1,
-        q: "در کلمه‌ی «خوشحال»، بخش «خوش» چه تاثیری دارد؟",
-        options: ["کلمه را منفی می‌کند", "معنای زیبایی و خوبی می‌دهد", "کلمه را جمع می‌بندد", "هیچ تاثیری ندارد"],
-        answer: 1, exp: "پیشوند «خوش» در ابتدای کلمه، معنای خوبی و مثبت به کلمه می‌دهد.",
-      },
-      {
-        type: "order", stage: 2,
-        q: "کلمات را مرتب کن:",
-        words: ["می‌خوانیم", "ما", "کتاب", "داستان"],
-        answer: "ما کتاب داستان می‌خوانیم",
-        exp: "ترتیب اجزای جمله در فارسی: فاعل (ما) + مفعول (کتاب داستان) + فعل (می‌خوانیم).",
-      },
-      {
-        type: "mcq", stage: 2,
-        q: "متضاد (مخالف) کلمه‌ی «تاریک» چیست؟",
-        options: ["روشن", "سیاه", "شب", "سرد"],
-        answer: 0, exp: "روشن نقطه‌ی مقابل و مخالف کلمه‌ی تاریک است.",
-      },
-      {
-        type: "fill", stage: 2,
-        q: "پایتخت کشور عزیز ما ایران، شهر ___ است.",
-        blank: "تهران", hint: "بزرگترین شهر ایران", exp: "تهران پایتخت و پرجمعیت‌ترین شهر ایران است.",
-      },
-      {
-        type: "mcq", stage: 3,
-        q: "کدام کلمه یک کلمه «مرکب» است؟ (از دو بخش معنی‌دار ساخته شده)",
-        options: ["سیاه", "گلدان", "کتابخانه", "درخت"],
-        answer: 2, exp: "کتابخانه از ترکیب دو کلمه معنی‌دار (کتاب + خانه) ساخته شده است.",
-      },
-      {
-        type: "order", stage: 3,
-        q: "کلمات را مرتب کن:",
-        words: ["است", "زیبا", "ایران", "بسیار", "کشور"],
-        answer: "کشور ایران بسیار زیبا است",
-        exp: "در ساختن جمله‌های فارسی به طور معمول فعل در آخرِ جمله قرار می‌گیرد.",
-      },
-    ],
-    arabic: [
-      {
-        type: "mcq", stage: 1,
-        q: "كيف نقول «این یک کتاب است» بالعربية؟",
-        options: ["هذا كتاب", "هذه مدرسة", "هذا قلم", "هو معلم"],
-        answer: 0, exp: "لإلإشارة إلى المذكر نستخدم اسم الإشارة «هذا».",
-      },
-      {
-        type: "fill", stage: 1,
-        q: "أكمل: «أنا أذهب إلى ___» (من به مدرسه می‌روم)",
-        blank: "المدرسة", hint: "مكان الدراسة", exp: "المدرسة تعني School وتستخدم لطلب العلم.",
-      },
-      {
-        type: "mcq", stage: 1,
-        q: "ما معنى كلمة «أسرة»؟",
-        options: ["دوستان", "خانواده", "مدرسه", "بازار"],
-        answer: 1, exp: "أسرة به معنی خانواده (Family) است.",
-      },
-      {
-        type: "order", stage: 2,
-        q: "رتب الكلمات (ترتیب بده):",
-        words: ["الولد", "التفاحة", "يأكل"],
-        answer: "يأكل الولد التفاحة",
-        exp: "ترتيب الجملة الفعلية: فعل (يأكل) + فاعل (الولد) + مفعول به (التفاحة).",
-      },
-      {
-        type: "mcq", stage: 2,
-        q: "ما هو جمع كلمة «ولد»؟",
-        options: ["ولدان", "أولاد", "مولود", "ولادة"],
-        answer: 1, exp: "جمع التكسير لكلمة ولد هو أولاد (پسرها).",
-      },
-      {
-        type: "fill", stage: 2,
-        q: "ما لون السماء؟ لونها ___. (آبی)",
-        blank: "أزرق", hint: "رنگ دریا", exp: "أزرق به معنی رنگ آبی است.",
-      },
-      {
-        type: "mcq", stage: 3,
-        q: "أي كلمة هي فعل؟ (کدام کلمه فعل است؟)",
-        options: ["مدرسة", "ألعب", "جميل", "كبير"],
-        answer: 1, exp: "«ألعب» (بازی می‌کنم) یک فعل است که انجام عملی را نشان می‌دهد.",
-      },
-      {
-        type: "order", stage: 3,
-        q: "رتب الكلمات:",
-        words: ["في", "أعيش", "الإمارات", "دولة"],
-        answer: "أعيش في دولة الإمارات",
-        exp: "دولة الإمارات العربية المتحدة (کشور امارات متحده عربی).",
-      },
-    ],
-    english: [
-      {
-        type: "mcq", stage: 1,
-        q: "Which sentence is correct for yesterday?",
-        options: ["I is happy.", "I was happy.", "I am happy.", "I be happy."],
-        answer: 1, exp: "We use 'was' as the past tense of 'am' for he/she/it/I.",
-      },
-      {
-        type: "fill", stage: 1,
-        q: "An elephant is ___ than a mouse. (bigger)",
-        blank: "bigger", hint: "large size with -er", exp: "When comparing two animals, we add '-er' to the adjective.",
-      },
-      {
-        type: "mcq", stage: 1,
-        q: "What does an 'Engineer' do?",
-        options: ["Bakes bread", "Builds machines and houses", "Sells clothes", "Paints walls"],
-        answer: 1, exp: "An engineer designs and builds things like bridges, buildings, and machines.",
-      },
-      {
-        type: "order", stage: 2,
-        q: "Make a question:",
-        words: ["you", "Did", "to", "go", "school"],
-        answer: "Did you go to school",
-        exp: "Questions in the past simple start with the helper verb 'Did'.",
-      },
-      {
-        type: "mcq", stage: 2,
-        q: "Complete: 'It is raining outside, take your ___.'",
-        options: ["sunglasses", "umbrella", "shorts", "kite"],
-        answer: 1, exp: "We use an umbrella to protect ourselves from rain and stay dry.",
-      },
-      {
-        type: "fill", stage: 2,
-        q: "We buy fresh food and vegetables at the ___.",
-        blank: "supermarket", hint: "a large store", exp: "A supermarket is a big shop where we buy our daily groceries.",
-      },
-      {
-        type: "mcq", stage: 3,
-        q: "Which word goes with 'always'? (Present Simple)",
-        options: ["He always walking.", "He always walked.", "He always walks.", "He always walk."],
-        answer: 2, exp: "For routines with 'he/she/it', we add an '-s' to the main verb.",
-      },
-      {
-        type: "order", stage: 3,
-        q: "Order the words:",
-        words: ["usually", "I", "at 7 o'clock", "wake up"],
-        answer: "I usually wake up at 7 o'clock",
-        exp: "Adverbs of frequency (usually) come before the main verb.",
-      },
-    ],
-    science: [
-      {
-        type: "mcq", stage: 1,
-        q: "کدام قسمتِ گیاه آب را از خاک می‌گیرد؟",
-        options: ["برگ", "ساقه", "ریشه", "گل"],
-        answer: 2, exp: "ریشه در خاک قرار دارد و آب و مواد مغذی را برای رشد گیاه جذب می‌کند.",
-      },
-      {
-        type: "fill", stage: 1,
-        q: "یخ یک ماده در حالت ___ است.",
-        blank: "جامد", hint: "سخت و محکم", exp: "یخ حالت جامد آب است که شکل مشخصی دارد.",
-      },
-      {
-        type: "mcq", stage: 1,
-        q: "یک آهنربا کدام ماده را به خود جذب می‌کند؟",
-        options: ["پلاستیک", "چوب", "آهن", "شیشه"],
-        answer: 2, exp: "آهنرباها فقط فلزات خاصی مانند آهن و فولاد را به خود جذب می‌کنند.",
-      },
-      {
-        type: "mcq", stage: 2,
-        q: "چرخش زمین به دور محور خودش باعث چه چیزی می‌شود؟",
-        options: ["پیدایش فصل‌ها", "شب و روز", "ماه‌گرفتگی", "زلزله"],
-        answer: 1, exp: "چرخش زمین به دور محور خودش که ۲۴ ساعت طول می‌کشد، باعث ایجاد شب و روز می‌شود.",
-      },
-      {
-        type: "fill", stage: 2,
-        q: "نیرویی که باعث پایین افتادن اجسام می‌شود، نیروی ___ نام دارد.",
-        blank: "جاذبه", hint: "نیروی گرانش زمین", exp: "جاذبه یا گرانش، نیرویی است که اجسام را به سمت مرکز زمین می‌کشد.",
-      },
-      {
-        type: "mcq", stage: 2,
-        q: "کدام یک از حیوانات زیر در زیستگاه «بیابان» زندگی راحت‌تری دارد؟",
-        options: ["خرس قطبی", "شتر", "دلفین", "میمون"],
-        answer: 1, exp: "شتر با داشتن کوهان و مژه‌های بلند می‌تواند گرما و کم‌آبی بیابان‌های امارات را تحمل کند.",
-      },
-      {
-        type: "order", stage: 3,
-        q: "مراحل رشد گیاه را مرتب کن:",
-        words: ["دانه", "جوانه", "گیاه کوچک", "گل"],
-        answer: "دانه جوانه گیاه کوچک گل",
-        exp: "دانه در خاک رشد کرده، جوانه می‌زند، به گیاه کوچکی تبدیل شده و درنهایت گل می‌دهد.",
-      },
-      {
-        type: "fill", stage: 3,
-        q: "وقتی آب را خیلی داغ کنیم و بجوشانیم، تبدیل به ___ می‌شود.",
-        blank: "بخار", hint: "حالت گازی آب (گاز)", exp: "دما و حرارت زیاد، آب مایع را به حالت گازی (بخار) تبدیل می‌کند.",
-      },
-    ],
-    math: [
-      {
-        type: "mcq", stage: 1,
-        q: "حاصل ضرب ۷ × ۶ چند می‌شود؟",
-        options: ["۴۲", "۴۸", "۳۶", "۴۰"],
-        answer: 0, exp: "شش بسته هفت‌تایی، با جدول ضرب می‌فهمیم شش هفت‌تا برابر ۴۲ است.",
-      },
-      {
-        type: "fill", stage: 1,
-        q: "یک ساعت برابر با ___ دقیقه است.",
-        blank: "۶۰", hint: "شصت", exp: "هر عقربه دقیقه شمار برای کامل کردن یک ساعت، ۶۰ دقیقه حرکت می‌کند.",
-      },
-      {
-        type: "mcq", stage: 1,
-        q: "برای اندازه‌گیری طول دکمه‌ی لباس، از کدام پیمانه/واحد استفاده می‌کنیم؟",
-        options: ["کیلوگرم", "لیتر", "میلی‌متر", "متر"],
-        answer: 2, exp: "میلی‌متر واحد بسیار کوچکی است که برای اندازه‌گیری اشیاء بسیار ریز استفاده می‌شود.",
-      },
-      {
-        type: "mcq", stage: 2,
-        q: "در کسر ۳/۴ (سه چهارم)، عدد ۳ چه نام دارد؟",
-        options: ["مخرج", "صورت", "خط کسری", "واحد"],
-        answer: 1, exp: "عدد بالایی در کسر «صورت» و نشان دهنده قسمت‌های رنگ‌شده است.",
-      },
-      {
-        type: "fill", stage: 2,
-        q: "شکلی که ۴ ضلع مساوی و ۴ زاویه راست دارد، ___ است.",
-        blank: "مربع", hint: "چهارگوش منظم", exp: "مربع یک شکل هندسی دو بعدی است که تمام اضلاعش با هم সমানند.",
-      },
-      {
-        type: "mcq", stage: 2,
-        q: "اگر ۳۰ آبنبات را بین ۶ کودک منصفانه تقسیم کنیم، به هر نفر چند آبنبات می‌رسد؟",
-        options: ["۴", "۵", "۶", "۳"],
-        answer: 1, exp: "برای تقسیم عادلانه ۳۰ بر ۶، متوجه می‌شویم ۵ × ۶ برابر ۳۰ می‌شود.",
-      },
-      {
-        type: "mcq", stage: 3,
-        q: "محیط یک مثلث با سه ضلع که اندازه‌هایشان ۳، ۴ و ۵ سانتی‌متر است چقدر است؟",
-        options: ["۱۲", "۱۵", "۶۰", "۲۰"],
-        answer: 0, exp: "محیط مجموع طول لبه‌های بیرونی شکل است. جمع ۳، ۴ و ۵ برابر با ۱۲ است.",
-      },
-      {
-        type: "fill", stage: 3,
-        q: "دو کیلوگرم برابر با ___ گرم است.",
-        blank: "۲۰۰۰", hint: "دوهزار", exp: "یک کیلوگرم ۱۰۰۰ گرم است، پس دو کیلوگرم برابر با ۲۰۰۰ گرم خواهد بود.",
-      },
-    ],
-    computer: [
-      {
-        type: "mcq", stage: 1,
-        q: "برای ورود به اینترنت و سایت‌ها از چه برنامه‌ای استفاده می‌کنیم؟",
-        options: ["نرم‌افزار Word", "ماشین‌حساب", "مرورگر وب", "نرم‌افزار Paint"],
-        answer: 2, exp: "برنامه‌هایی مانند کروم یا سَفاری، مرورگر وب (Web Browser) نام دارند.",
-      },
-      {
-        type: "fill", stage: 1,
-        q: "هنگام ساختن رمز عبور، قانون اصلی این است که آن را ___ نگه داریم.",
-        blank: "مخفی", hint: "محرمانه/پنهان", exp: "در شهروندی دیجیتال، حفظ امنیت اطلاعات و پسورد شما اهمیت زیادی دارد.",
-      },
-      {
-        type: "mcq", stage: 1,
-        q: "در برنامه‌نویسی با بلوک‌ها، برای تکرار یک دستور از چه بلوکی استفاده می‌شود؟",
-        options: ["If", "Loop", "Start", "Print"],
-        answer: 1, exp: "حلقه یا Loop (Repeat) کمک می‌کند یک تکه کد به تعداد مشخصی تکرار شود.",
-      },
-      {
-        type: "mcq", stage: 2,
-        q: "ذخیره کردن فایل یا بازی از اینترنت روی کامپیوتر شخصی چه نام دارد؟",
-        options: ["آپلود", "دانلود", "کپی‌رایت", "حذف"],
-        answer: 1, exp: "دریافت اطلاعات و فایل از سرورهای اینترنتی به کامپیوتر ما دانلود (Download) است.",
-      },
-      {
-        type: "fill", stage: 2,
-        q: "برای نوشتن با حروف بزرگ در کیبورد کامپیوتر، کلید ___ را روشن می‌کنیم.",
-        blank: "Caps Lock", hint: "کپس لاک", exp: "کلید Caps Lock به شما کمک می‌کند تمام حروف انگلیسی را به حالت Capital تایپ کنید.",
-      },
-      {
-        type: "mcq", stage: 2,
-        q: "اگر فرد ناشناسی در بازی آنلاین از ما عکس خواست، چه‌کار کنیم؟",
-        options: ["بفرستیم", "هرگز قبول نکنیم و به والدین اطلاع دهیم", "اول عکس او را بخواهیم", "عکس فیک بفرستیم"],
-        answer: 1, exp: "امنیت سایبری به ما یاد می‌دهد که با غریبه‌ها اطلاعات مبادله نکنیم.",
-      },
-      {
-        type: "mcq", stage: 3,
-        q: "قطعات فیزیکی و ملموس کامپیوتر (مثل ماوس، کیبورد و مانیتور) چه خوانده می‌شوند؟",
-        options: ["نرم‌افزار", "مرورگر", "سخت‌افزار", "اپلیکیشن"],
-        answer: 2, exp: "هر چیزی در کامپیوتر که می‌توان آن را لمس کرد، سخت‌افزار (Hardware) نام دارد.",
-      },
-      {
-        type: "order", stage: 3,
-        q: "برای جستجو در گوگل مراحل را مرتب کن:",
-        words: ["به گوگل برو", "کلمه مورد نظر", "را تایپ کن", "سپس اینتر بزن"],
-        answer: "به گوگل برو کلمه مورد نظر را تایپ کن سپس اینتر بزن",
-        exp: "نحوه اصولی کار با موتورهای جستجو.",
-      },
-    ],
-  };
-  return banks[subjectId] || [];
-}
-
-// ─── Utility ─────────────────────────────────────────────────────────────
-function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-function StarBurst({ count }) {
-  return (
-    <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap" }}>
-      {Array.from({ length: count }).map((_, i) => (
-        <span key={i} style={{ fontSize: 22, animation: `pop 0.3s ${i * 0.08}s both` }}>⭐</span>
-      ))}
-    </div>
-  );
+  return [];
 }
 
 // ─── Main App ─────────────────────────────────────────────────────────────
@@ -689,13 +1017,16 @@ export default function App() {
   }, [timerActive, timeLeft]);
 
   function startMissions(subjectId, customMissions, lessonId = null) {
-    const ms = customMissions || buildMissions(subjectId);
+    const ms = Array.isArray(customMissions) ? customMissions : buildMissions(subjectId);
+    if (!Array.isArray(ms) || ms.length === 0) {
+      alert('برای این درس هنوز ماموریتی ثبت نشده است.');
+      return;
+    }
     setActiveSubject(subjectId);
     setActiveLessonId(lessonId);
     setMissions(ms);
     setMissionIdx(0);
     setStage(1);
-    setScore(0);
     setStars(0);
     setFeedback(null);
     setStageResults({ correct: 0, total: 0 });
@@ -768,19 +1099,6 @@ export default function App() {
           stars: stars + (feedback?.stars || 0),
           detailedResults: missionHistory
         });
-        if (activeLessonId) {
-          api.updateLessonProgress(token, activeLessonId, 'completed').then(res => {
-            if (res.progress) {
-              setUser(u => {
-                if (!u) return u;
-                const newProg = [...(u.lessonProgress || [])];
-                const i = newProg.findIndex(p => p.lessonId === activeLessonId);
-                if (i > -1) newProg[i] = res.progress; else newProg.push(res.progress);
-                return { ...u, lessonProgress: newProg };
-              });
-            }
-          }).catch(err => console.error(err));
-        }
       }
 
       setScreen("summary");
@@ -868,12 +1186,8 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
     <>
       <HomeScreen
         onStart={(id) => {
-          if (id === 'persian') {
-            setActiveSubject(id);
-            setScreen("chapters");
-          } else {
-            startMissions(id);
-          }
+          setActiveSubject(id);
+          setScreen("chapters");
         }}
         onUpload={() => setScreen("upload")}
         completedSubjects={completedSubjects}
@@ -892,13 +1206,14 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
         <ChaptersScreen
           subject={subj}
           token={token}
+          user={user}
           userProgress={user?.lessonProgress || []}
           onBack={() => setScreen("home")}
           onStudy={(lessonId) => {
-            api.getLessonDetails(token, lessonId).then(data => {
+            api.curriculumLessonDetails(token, lessonId).then(data => {
               setCurrentLessonItem(data);
               setScreen("study");
-              api.updateLessonProgress(token, lessonId, 'read').then(res => {
+              api.curriculumLessonProgress(token, lessonId, 'read').then(res => {
                 if (res.progress) {
                   setUser(u => {
                     if (!u) return u;
@@ -912,7 +1227,7 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
             });
           }}
           onPlay={(lessonId) => {
-            api.getLessonDetails(token, lessonId).then(data => {
+            api.curriculumLessonDetails(token, lessonId).then(data => {
               startMissions(activeSubject, data.missions, lessonId);
             });
           }}
@@ -934,16 +1249,17 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
           SUBJECTS={SUBJECTS}
         />
       )}
-      {screen === "dashboard" && (
-        <DashboardScreen
-          token={token}
-          user={user}
-          SUBJECTS={SUBJECTS}
-          api={api}
-          onBack={() => setScreen('home')}
-        />
-      )}
     </>
+  );
+
+  if (screen === "dashboard") return (
+    <DashboardScreen
+      token={token}
+      user={user}
+      SUBJECTS={SUBJECTS}
+      api={api}
+      onBack={() => setScreen('home')}
+    />
   );
 
   if (screen === "upload") return <UploadScreen
@@ -1002,7 +1318,7 @@ function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBad
       display: "flex", flexDirection: "column", alignItems: "center", position: "relative"
     }}>
       <LiveClock />
-      {user?.role === 'teacher' && (
+      {(user?.role === 'teacher' || user?.role === 'admin') && (
         <button onClick={onDashboard} style={{
           alignSelf: 'flex-start',
           background: 'rgba(255,255,255,0.08)',
@@ -1246,11 +1562,13 @@ function UploadScreen({ uploadedText, setUploadedText, uploadSubject, setUploadS
       const token = localStorage.getItem('token');
       // Using global loading state is not easy without modifying App, so let's fire it locally? Let's just await without global loading lock or we can add a local loading.
       // But we can just use the api.
-      const res = await api.uploadPdf(token, formData);
+      const res = await api.curriculumTextbookUpload(token, formData);
       if (res.success) {
         alert(res.message);
         onBack();
-      } else alert("خطا: " + res.error);
+      } else {
+        alert(res.error || 'Upload failed');
+      }
     } catch (e) {
       alert("خطا در آپلود PDF");
     }
@@ -2134,28 +2452,54 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
 }
 
 // ─── CHAPTERS SCREEN ──────────────────────────────────────────────────────
-function ChaptersScreen({ subject, token, onBack, onStudy, onPlay, userProgress }) {
+function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userProgress }) {
   const [chapters, setChapters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState(null);
-  const grade = 3;
+  const grade = user?.role === 'parent'
+    ? (user?.linkedStudent?.grade || 3)
+    : (user?.grade || 3);
   const c = subject?.color || COLORS.persian;
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
-    Promise.all([
-      api.getLessons(token, subject.id),
-      api.pdfStatus(token, subject.id, grade)
-    ]).then(([lessonsData, pdfData]) => {
-      setChapters(lessonsData);
-      if (pdfData.exists) {
-        setPdfUrl((import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/$/, '') + pdfData.url);
-      }
+    if (!subject?.id) {
+      setChapters([]);
+      setPdfUrl(null);
       setLoading(false);
-    }).catch(() => setLoading(false));
+      return () => { document.body.style.overflow = 'unset'; };
+    }
+    (async () => {
+      try {
+        const [coursesData, pdfData] = await Promise.all([
+          api.curriculumCourses(token, { grade, subject: subject.id }),
+          api.curriculumTextbookStatus(token, subject.id, grade)
+        ]);
+
+        const courseId = Array.isArray(coursesData) ? coursesData?.[0]?._id : null;
+        if (!courseId) {
+          setChapters([]);
+          if (pdfData?.exists) {
+            setPdfUrl((import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/$/, '') + pdfData.url);
+          }
+          setLoading(false);
+          return;
+        }
+
+        const lessonsData = await api.curriculumLessons(token, { courseId });
+        setChapters(Array.isArray(lessonsData) ? lessonsData : []);
+
+        if (pdfData?.exists) {
+          setPdfUrl((import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/$/, '') + pdfData.url);
+        }
+        setLoading(false);
+      } catch (e) {
+        setLoading(false);
+      }
+    })();
 
     return () => { document.body.style.overflow = 'unset'; };
-  }, [subject, token]);
+  }, [subject, token, grade]);
 
   const getProgress = (lessonId) => {
     return userProgress?.find(p => p.lessonId === lessonId) || { read: false, completed: false };

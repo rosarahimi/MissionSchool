@@ -81,6 +81,16 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'ایمیل یا رمز عبور اشتباه است.' });
     }
 
+    const teacherEmails = String(process.env.TEACHER_EMAILS || '')
+      .split(',')
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (teacherEmails.includes(String(user.email).toLowerCase()) && user.role !== 'teacher') {
+      user.role = 'teacher';
+      await user.save();
+    }
+
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '7d' });
     console.log('Login successful for:', email);
     res.json({ token, email: user.email });

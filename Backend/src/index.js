@@ -37,12 +37,10 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user'); // new
-const lessonRoutes = require('./routes/lesson'); // new
 const curriculumRoutes = require('./routes/curriculum');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes); // new
-app.use('/api/lessons', lessonRoutes); // new
 app.use('/api/curriculum', curriculumRoutes);
 
 app.get('/', (req, res) => {

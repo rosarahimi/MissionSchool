@@ -5,7 +5,7 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
   name: { type: String, default: '' },
-  role: { type: String, enum: ['student', 'parent', 'teacher'], default: 'student' },
+  role: { type: String, enum: ['student', 'parent', 'teacher', 'admin'], default: 'student' },
   grade: { type: Number, default: 3 }, // Added grade for students
   linkedStudent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // For parents to link to student
   scores: [{
