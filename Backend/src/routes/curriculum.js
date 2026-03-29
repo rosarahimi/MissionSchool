@@ -43,6 +43,14 @@ function parseMissionsJson(rawText) {
 function sanitizeGeneratedMissions(missions) {
   const list = Array.isArray(missions) ? missions : [];
 
+  const normalizeOrderText = (s) => {
+    return String(s || '')
+      .replace(/[\u200c\u200d]/g, '')
+      .replace(/[\s\u00A0]+/g, ' ')
+      .replace(/[.\u06d4،,:;!؟“”"'«»()\[\]{}]/g, '')
+      .trim();
+  };
+
   const splitOrderWords = (input) => {
     if (input === undefined || input === null) return [];
     const raw = String(input).trim();
@@ -100,7 +108,7 @@ function sanitizeGeneratedMissions(missions) {
       type,
       stage,
       q,
-      exp: exp || 'توضیح موجود نیست.',
+      exp: exp || '',
     };
 
     if (type === 'mcq') {
@@ -114,9 +122,11 @@ function sanitizeGeneratedMissions(missions) {
     }
 
     if (type === 'fill') {
+      const rawBlank = m?.blank !== undefined && m?.blank !== null ? String(m.blank) : '';
+      const blankWord = rawBlank.trim().split(/\s+/g).filter(Boolean)[0] || '';
       return {
         ...base,
-        blank: m?.blank !== undefined ? String(m.blank) : '',
+        blank: blankWord,
         hint: m?.hint !== undefined ? String(m.hint) : '',
         answer: m?.answer,
       };
@@ -132,9 +142,20 @@ function sanitizeGeneratedMissions(missions) {
       }
       const extractedFromQ = !words.length;
       if (extractedFromQ) words = wordsFromQuestion(q);
-      if (!words.length) words = wordsFromAnswerSentence(originalAnswer);
+      const answerWords = wordsFromAnswerSentence(originalAnswer);
+      if (!words.length) words = answerWords;
+      if (answerWords.length >= 3 && words.length < answerWords.length) {
+        words = answerWords;
+      }
 
-      const nextQ = questionHasEmbeddedWordList(q) ? cleanOrderQuestion(q) : q;
+      const qNorm = normalizeOrderText(q);
+      const aNorm = normalizeOrderText(originalAnswer);
+      const leaksAnswer = !!aNorm && qNorm.includes(aNorm);
+
+      let nextQ = questionHasEmbeddedWordList(q) ? cleanOrderQuestion(q) : q;
+      if (leaksAnswer) {
+        nextQ = 'ترتیب درست کلمات را بسازید.';
+      }
       return {
         ...base,
         q: nextQ,
@@ -175,7 +196,7 @@ Create exactly 8 educational missions as a JSON array. Each mission must have:
 - stage: 1, 2, or 3 (stages 1-2 have 3 missions each, stage 3 has 2)
 - q: question text
 - For mcq: options (array of 4 strings), answer (index 0-3)
-- For fill: blank (the answer word), hint (one short hint)
+- For fill: blank (EXACTLY ONE WORD, no spaces), hint (one short hint)
 - For order: words (array of 4-5 words shuffled), answer (correct sentence)
 - exp: short explanation (1-2 sentences) in the same language as the lesson
 
@@ -234,7 +255,7 @@ Create exactly 8 educational missions as a JSON array. Each mission must have:
 - stage: 1, 2, or 3 (stages 1-2 have 3 missions each, stage 3 has 2)
 - q: question text
 - For mcq: options (array of 4 strings), answer (index 0-3)
-- For fill: blank (the answer word), hint (one short hint)
+- For fill: blank (EXACTLY ONE WORD, no spaces), hint (one short hint)
 - For order: words (array of 4-5 words shuffled), answer (correct sentence)
 - exp: short explanation (1-2 sentences) in the same language as the lesson
 

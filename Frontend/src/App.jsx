@@ -12,16 +12,34 @@ const COLORS = {
   science: { bg: "#96CEB4", light: "#E0F5EA", dark: "#3A7A5A", text: "#fff" },
   math: { bg: "#9B59B6", light: "#F4ECF7", dark: "#6C3483", text: "#fff" },
   computer: { bg: "#34495E", light: "#EAECEE", dark: "#2C3E50", text: "#fff" },
+  quran: { bg: "#FFC107", light: "#FFF2CC", dark: "#FF9900", text: "#fff" },
 };
 
 const SUBJECTS = [
-  { id: "persian", label: "فارسی", emoji: "📖", color: COLORS.persian, dir: "rtl" },
-  { id: "arabic", label: "عربی", emoji: "🌙", color: COLORS.arabic, dir: "rtl" },
-  { id: "english", label: "English", emoji: "🌟", color: COLORS.english, dir: "ltr" },
-  { id: "science", label: "علوم", emoji: "🔬", color: COLORS.science, dir: "rtl" },
-  { id: "math", label: "ریاضی", emoji: "📐", color: COLORS.math, dir: "rtl" },
-  { id: "computer", label: "کامپیوتر", emoji: "💻", color: COLORS.computer, dir: "rtl" },
+  { id: "persian", label: "فارسی", emoji: "📚", dir: "rtl", color: COLORS.persian },
+  { id: "math", label: "ریاضی", emoji: "➗", dir: "rtl", color: COLORS.math },
+  { id: "science", label: "علوم", emoji: "🔬", dir: "rtl", color: COLORS.science },
+  { id: "quran", label: "قرآن", emoji: "🕌", dir: "rtl", color: COLORS.quran },
+  { id: "english", label: "انگلیسی", emoji: "🇬🇧", dir: "ltr", color: COLORS.english },
+  { id: "arabic", label: "عربی", emoji: "📝", dir: "rtl", color: COLORS.arabic },
 ];
+
+function shuffle(arr) {
+  const a = Array.isArray(arr) ? [...arr] : [];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function normalizeOrderText(s) {
+  return String(s || '')
+    .replace(/[\u200c\u200d]/g, '')
+    .replace(/[\s\u00A0]+/g, ' ')
+    .replace(/[.\u06d4،,:;!؟“”"'«»()\[\]{}]/g, '')
+    .trim();
+}
 
 const BADGES = [
   { id: "first_star", emoji: "⭐", label: "اولین ستاره", condition: (s) => s.totalStars >= 1 },
@@ -1443,6 +1461,13 @@ export default function App() {
     setFillVal("");
     setSelectedWords([]);
     if (m?.type === "order") {
+      const wordsFromAnswer = () => {
+        const ans = String(m?.answer || '').trim();
+        if (!ans) return [];
+        const cleaned = ans.replace(/[.\u06d4]+$/g, '').trim();
+        return cleaned.split(/\s+/g).map(s => s.trim()).filter(Boolean);
+      };
+
       const wordsFromQuestion = () => {
         const rawQ = String(m?.q || '').trim();
         if (!rawQ) return [];
@@ -1456,7 +1481,9 @@ export default function App() {
           .filter(Boolean);
       };
 
-      const words = Array.isArray(m?.words) ? m.words : wordsFromQuestion();
+      let words = Array.isArray(m?.words) ? m.words : wordsFromQuestion();
+      words = (Array.isArray(words) ? words : []).map(String).map(s => s.trim()).filter(Boolean);
+      if (words.length < 3) words = wordsFromAnswer();
       setDragWords(shuffle(words));
     }
     setTimeLeft(30);
@@ -1477,7 +1504,7 @@ export default function App() {
       correct = value.trim().toLowerCase() === m.blank.toLowerCase() ||
         value.trim() === m.blank;
     } else if (m.type === "order") {
-      correct = selectedWords.join(" ") === m.answer;
+      correct = normalizeOrderText(selectedWords.join(' ')) === normalizeOrderText(m.answer);
     }
 
     const wasfast = timeLeft > 20;
@@ -2149,6 +2176,7 @@ function GameScreen({
   fillVal, setFillVal, onAnswer, onNext, showStageComplete,
 }) {
   const c = subject?.color || COLORS.persian;
+  const dragRef = useRef(null); // { from: 'available'|'selected', index: number }
   const progress = (missionIdx / totalMissions) * 100;
   const timerPct = (timeLeft / 30) * 100;
   const timerColor = timeLeft > 15 ? "#4ECDC4" : timeLeft > 8 ? "#FFD700" : "#FF6B6B";
@@ -2188,6 +2216,77 @@ function GameScreen({
     if (feedback) return;
     setSelectedWords(s => s.filter((_, i) => i !== idx));
     setDragWords(d => [...d, w]);
+  }
+
+  function startDrag(from, index) {
+    if (feedback) return;
+    dragRef.current = { from, index };
+  }
+  function allowDrop(e) {
+    if (feedback) return;
+    e.preventDefault();
+  }
+  function dropToSelected(e, atIndex = null) {
+    if (feedback) return;
+    e.preventDefault();
+    const info = dragRef.current;
+    dragRef.current = null;
+    if (!info) return;
+
+    if (info.from === 'available') {
+      setDragWords((d) => {
+        const arr = Array.isArray(d) ? [...d] : [];
+        const w = arr[info.index];
+        if (w === undefined) return arr;
+        arr.splice(info.index, 1);
+        setSelectedWords((s) => {
+          const sel = Array.isArray(s) ? [...s] : [];
+          const idx = typeof atIndex === 'number' ? Math.max(0, Math.min(sel.length, atIndex)) : sel.length;
+          sel.splice(idx, 0, w);
+          return sel;
+        });
+        return arr;
+      });
+      return;
+    }
+
+    if (info.from === 'selected') {
+      setSelectedWords((s) => {
+        const sel = Array.isArray(s) ? [...s] : [];
+        const w = sel[info.index];
+        if (w === undefined) return sel;
+        sel.splice(info.index, 1);
+        const idx = typeof atIndex === 'number' ? Math.max(0, Math.min(sel.length, atIndex)) : sel.length;
+        sel.splice(idx, 0, w);
+        return sel;
+      });
+    }
+  }
+
+  function dropToAvailable(e) {
+    if (feedback) return;
+    e.preventDefault();
+    const info = dragRef.current;
+    dragRef.current = null;
+    if (!info) return;
+
+    if (info.from === 'selected') {
+      setSelectedWords((s) => {
+        const sel = Array.isArray(s) ? [...s] : [];
+        const w = sel[info.index];
+        if (w === undefined) return sel;
+        sel.splice(info.index, 1);
+        setDragWords((d) => {
+          const arr = Array.isArray(d) ? [...d] : [];
+          arr.push(w);
+          return arr;
+        });
+        return sel;
+      });
+      return;
+    }
+
+    // Dropping an available word back into available is a no-op.
   }
 
   const playAudio = (text) => {
@@ -2338,11 +2437,29 @@ function GameScreen({
                 cursor: "pointer", textAlign: subject?.dir === "ltr" ? "left" : "right",
                 direction: subject?.dir, fontFamily: "inherit", fontWeight: 600,
                 transition: "all 0.2s",
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
               }}>
-                <span style={{ opacity: 0.5, marginLeft: 6, marginRight: 6 }}>
-                  {["الف", "ب", "ج", "د"][i]}
+                <span style={{
+                  opacity: 0.9,
+                  fontWeight: 900,
+                  color: '#fff',
+                  background: 'rgba(255,255,255,0.10)',
+                  border: '1px solid rgba(255,255,255,0.16)',
+                  borderRadius: 10,
+                  minWidth: 30,
+                  height: 28,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  {["۱", "۲", "۳", "۴"][i]}
                 </span>
-                {opt}
+                <span style={{ flex: 1 }}>
+                  {opt}
+                </span>
               </button>
             ))}
           </div>
@@ -2386,10 +2503,18 @@ function GameScreen({
               borderRadius: 16, border: "2px dashed rgba(255,255,255,0.2)",
               padding: "10px 12px", marginBottom: 12,
               display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center",
-            }}>
+            }} onDragOver={allowDrop} onDrop={(e) => dropToSelected(e, null)}>
               {selectedWords.length === 0 && <span style={{ color: "#555", fontSize: 13 }}>کلمات را اینجا بچین...</span>}
               {selectedWords.map((w, i) => (
-                <button key={i} className="word-chip" onClick={() => removeSelected(w, i)} style={{
+                <button
+                  key={i}
+                  className="word-chip"
+                  onClick={() => removeSelected(w, i)}
+                  draggable
+                  onDragStart={() => startDrag('selected', i)}
+                  onDragOver={allowDrop}
+                  onDrop={(e) => dropToSelected(e, i)}
+                  style={{
                   padding: "6px 14px", background: c.bg, border: "none",
                   borderRadius: 20, color: "#fff", fontSize: 14, cursor: "pointer",
                   fontFamily: "inherit", transition: "transform 0.15s",
@@ -2397,10 +2522,15 @@ function GameScreen({
               ))}
             </div>
             {/* Available */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-              {Array.isArray(dragWords) ? dragWords : shuffle(orderWords).map(String).map((w, i) => ({ w, i })) && []}
-              {dragWords.map((w, i) => (
-                <button key={i} className="word-chip" onClick={() => toggleWord(w, i)} style={{
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }} onDragOver={allowDrop} onDrop={dropToAvailable}>
+              {(Array.isArray(dragWords) ? dragWords : []).map((w, i) => (
+                <button
+                  key={i}
+                  className="word-chip"
+                  onClick={() => toggleWord(w, i)}
+                  draggable
+                  onDragStart={() => startDrag('available', i)}
+                  style={{
                   padding: "6px 14px",
                   background: "rgba(255,255,255,0.12)", border: "2px solid rgba(255,255,255,0.25)",
                   borderRadius: 20, color: "#fff", fontSize: 14, cursor: "pointer",
@@ -2460,16 +2590,25 @@ function GameScreen({
                 {feedback.correct ? "عالی بود!" : feedback.timeout ? "وقت تموم شد!" : "اشتباه!"}
               </div>
               {feedback.correct && <StarBurst count={feedback.stars} />}
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '8px', marginTop: 10, direction: 'rtl' }}>
-                <button onClick={() => playAudio(feedback.exp)} title="پخش توضیح" style={{
-                  background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
-                  width: 32, height: 32, color: '#4ECDC4', cursor: 'pointer', fontSize: 16, flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>🔊</button>
-                <div style={{ color: "#ccc", fontSize: 13, lineHeight: 1.7, textAlign: 'right' }}>
-                  {feedback.exp}
+              {(String(feedback.exp || '').trim() || !feedback.correct) && (
+                <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '8px', marginTop: 10, direction: 'rtl' }}>
+                  <button onClick={() => playAudio(String(feedback.exp || '').trim() || 'پاسخ صحیح را ببین')} title="پخش توضیح" style={{
+                    background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
+                    width: 32, height: 32, color: '#4ECDC4', cursor: 'pointer', fontSize: 16, flexShrink: 0,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>🔊</button>
+                  <div style={{ color: "#ccc", fontSize: 13, lineHeight: 1.7, textAlign: 'right' }}>
+                    {String(feedback.exp || '').trim() && (
+                      <div style={{ marginBottom: (!feedback.correct || feedback.timeout) ? 8 : 0 }}>{feedback.exp}</div>
+                    )}
+                    {(!feedback.correct || feedback.timeout) && (
+                      <div style={{ fontWeight: 900, color: '#fff' }}>
+                        پاسخ صحیح: {mission?.type === 'fill' ? mission?.blank : mission?.type === 'order' ? mission?.answer : ''}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <button onClick={onNext} style={{
