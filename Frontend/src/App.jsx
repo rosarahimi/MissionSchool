@@ -469,37 +469,19 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
       return;
     }
     setPageImageFile(file);
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const base64 = ev.target.result.split(',')[1];
-      const mediaType = file.type;
-      setBusyKey('mission-ocr');
-      try {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1000,
-            messages: [{
-              role: 'user',
-              content: [
-                { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-                { type: 'text', text: 'Please extract all text from this textbook page. Return only the text, preserving paragraphs. No extra commentary.' }
-              ]
-            }]
-          }),
-        });
-        const data = await res.json();
-        const text = data.content?.map(i => i.text || "").join("") || "";
-        setPageText(text);
-      } catch {
-        alert('خطا در پردازش تصویر');
-      } finally {
-        setBusyKey('');
+    setBusyKey('mission-ocr');
+    try {
+      const res = await api.ocrImage(token, file);
+      if (res?.error) {
+        alert(res.error);
+        return;
       }
-    };
-    reader.readAsDataURL(file);
+      setPageText(res.text || '');
+    } catch {
+      alert('خطا در پردازش تصویر');
+    } finally {
+      setBusyKey('');
+    }
   }
 
   async function removeLesson(lessonId) {
@@ -1682,7 +1664,6 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
           setActiveSubject(id);
           setScreen("chapters");
         }}
-        onUpload={() => setScreen("upload")}
         completedSubjects={completedSubjects}
         gameStats={gameStats}
         earnedBadges={earnedBadges}
@@ -1758,14 +1739,18 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
     </>
   );
 
-  if (screen === "upload") return <UploadScreen
-    uploadedText={uploadedText} setUploadedText={setUploadedText}
-    uploadSubject={uploadSubject} setUploadSubject={setUploadSubject}
-    onAnalyze={analyzeTextWithAI} loading={loading}
-    onBack={() => setScreen("home")}
-    photoFile={photoFile} setPhotoFile={setPhotoFile}
-    fileRef={fileRef}
-  />;
+  if (screen === "upload") return (
+    <>
+      <GlobalStyles />
+      <DashboardScreen
+        token={token}
+        user={user}
+        SUBJECTS={SUBJECTS}
+        api={api}
+        onBack={() => setScreen('home')}
+      />
+    </>
+  );
 
 
 
@@ -1806,7 +1791,7 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
 }
 
 // ─── HOME SCREEN ──────────────────────────────────────────────────────────
-function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBadges, onHall, user, onLogout, onDashboard }) {
+function HomeScreen({ onStart, completedSubjects, gameStats, earnedBadges, onHall, user, onLogout, onDashboard }) {
   return (
     <div style={{
       minHeight: "100vh", background: "linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)",
@@ -1963,18 +1948,6 @@ function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBad
         })}
       </div>
 
-      {/* Action buttons */}
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "center", animation: "fadeSlide 0.6s 0.4s both" }}>
-        <button className="btn-glow" onClick={onUpload} style={{
-          background: "linear-gradient(135deg,#9B59B6,#6C3483)", color: "#fff",
-          border: "none", borderRadius: 16, padding: "12px 22px", fontSize: 14,
-          cursor: "pointer", fontWeight: 700, transition: "all 0.2s",
-          boxShadow: "0 6px 20px rgba(155,89,182,0.4)",
-        }}>
-          📸 آپلود کتاب درسی
-        </button>
-      </div>
-
       {completedSubjects.length === 6 && (
         <div style={{
           marginTop: 24, background: "linear-gradient(135deg,#FFD700,#FF6B6B)",
@@ -1986,203 +1959,6 @@ function HomeScreen({ onStart, onUpload, completedSubjects, gameStats, earnedBad
             قهرمان روز! همه ۶ درس رو تموم کردی!
           </div>
         </div>
-      )}
-    </div>
-  );
-}
-
-// ─── UPLOAD SCREEN ────────────────────────────────────────────────────────
-function UploadScreen({ uploadedText, setUploadedText, uploadSubject, setUploadSubject, onAnalyze, loading, onBack, photoFile, setPhotoFile, fileRef }) {
-  const [tab, setTab] = useState('mission'); // 'mission' | 'pdf'
-  const [pdfFile, setPdfFile] = useState(null);
-  const pdfRef = useRef();
-  const grade = 3;
-
-  async function handleFile(e) {
-    const file = e.target.files[0];
-    if (!file) return;
-
-    if (tab === 'pdf') {
-      if (file.type !== "application/pdf") {
-        alert("لطفا فایل PDF انتخاب کنید.");
-        return;
-      }
-      setPdfFile(file);
-      return;
-    }
-
-    // mission tab (image)
-    if (!file.type.startsWith("image/")) {
-      alert("لطفا فقط عکس انتخاب کنید.");
-      return;
-    }
-    setPhotoFile(file);
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const base64 = ev.target.result.split(",")[1];
-      const mediaType = file.type;
-      try {
-        const res = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-20250514",
-            max_tokens: 1000,
-            messages: [{
-              role: "user",
-              content: [
-                { type: "image", source: { type: "base64", media_type: mediaType, data: base64 } },
-                { type: "text", text: "Please extract all text from this textbook page. Return only the text, preserving paragraphs. No extra commentary." }
-              ]
-            }]
-          }),
-        });
-        const data = await res.json();
-        const text = data.content?.map(i => i.text || "").join("") || "";
-        setUploadedText(text);
-      } catch {
-        alert("خطا در پردازش تصویر");
-      }
-    };
-    reader.readAsDataURL(file);
-  }
-
-  async function handlePdfUploadSubmit() {
-    if (!pdfFile) return;
-    const formData = new FormData();
-    formData.append("subject", uploadSubject);
-    formData.append("grade", String(grade));
-    formData.append("pdf", pdfFile);
-
-    try {
-      const token = localStorage.getItem('token');
-      // Using global loading state is not easy without modifying App, so let's fire it locally? Let's just await without global loading lock or we can add a local loading.
-      // But we can just use the api.
-      const res = await api.curriculumTextbookUpload(token, formData);
-      if (res.success) {
-        alert(res.message);
-        onBack();
-      } else {
-        alert(res.error || 'Upload failed');
-      }
-    } catch (e) {
-      alert("خطا در آپلود PDF");
-    }
-  }
-
-  return (
-    <div style={{
-      minHeight: "100vh", background: "linear-gradient(135deg,#1a1a2e,#16213e)",
-      padding: 20, fontFamily: "'Vazirmatn','Segoe UI',sans-serif",
-      display: "flex", flexDirection: "column", alignItems: "center",
-    }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap');`}</style>
-
-      <button onClick={onBack} style={{
-        alignSelf: "flex-start", background: "none", border: "none",
-        color: "#aaa", fontSize: 22, cursor: "pointer", marginBottom: 10,
-      }}>← برگشت</button>
-
-      <div style={{ display: 'flex', gap: 10, marginBottom: 24, padding: 4, background: 'rgba(0,0,0,0.3)', borderRadius: 16 }}>
-        <button onClick={() => setTab('pdf')} style={{
-          padding: '12px 24px', borderRadius: 12, border: 'none', fontWeight: 'bold', fontSize: 16, cursor: 'pointer',
-          background: tab === 'pdf' ? '#FFD700' : 'transparent', color: tab === 'pdf' ? '#000' : '#aaa', transition: '0.2s'
-        }}>آپلود کل کتاب (PDF)</button>
-        <button onClick={() => setTab('mission')} style={{
-          padding: '12px 24px', borderRadius: 12, border: 'none', fontWeight: 'bold', fontSize: 16, cursor: 'pointer',
-          background: tab === 'mission' ? '#4ECDC4' : 'transparent', color: tab === 'mission' ? '#000' : '#aaa', transition: '0.2s'
-        }}>استخراج ماموریت از یک صفحه</button>
-      </div>
-
-      {/* Subject selector */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", justifyContent: "center" }}>
-        {SUBJECTS.map(s => (
-          <button key={s.id} onClick={() => setUploadSubject(s.id)} style={{
-            padding: "8px 16px", borderRadius: 12, border: "2px solid",
-            borderColor: uploadSubject === s.id ? s.color.bg : "transparent",
-            background: uploadSubject === s.id ? s.color.bg + "33" : "rgba(255,255,255,0.08)",
-            color: "#fff", cursor: "pointer", fontSize: 14, fontWeight: 700,
-            direction: s.dir, transition: "all 0.2s",
-          }}>
-            {s.emoji} {s.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'mission' ? (
-        <>
-          <div
-            onClick={() => fileRef.current?.click()}
-            style={{
-              width: "100%", maxWidth: 400, border: "2px dashed #4ECDC4",
-              borderRadius: 20, padding: "30px 20px", textAlign: "center",
-              cursor: "pointer", marginBottom: 16, background: "rgba(78,205,196,0.05)",
-            }}
-          >
-            <div style={{ fontSize: 42 }}>{photoFile ? "✅" : "📷"}</div>
-            <div style={{ color: "#fff", direction: "rtl", marginTop: 8 }}>
-              {photoFile ? photoFile.name : "برای انتخاب عکسِِ کتاب کلیک کن"}
-            </div>
-            <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: "none" }} />
-          </div>
-
-          <textarea
-            value={uploadedText}
-            onChange={e => setUploadedText(e.target.value)}
-            placeholder="یا متن صفحه را مستقیماً اینجا وارد کن..."
-            style={{
-              width: "100%", maxWidth: 400, minHeight: 140,
-              background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.2)",
-              borderRadius: 16, padding: 16, color: "#fff", fontSize: 14,
-              resize: "vertical", direction: "rtl", fontFamily: "inherit", boxSizing: "border-box",
-            }}
-          />
-
-          <button
-            onClick={onAnalyze}
-            disabled={loading || !uploadedText.trim()}
-            style={{
-              marginTop: 16, padding: "14px 36px",
-              background: uploadedText.trim() ? "linear-gradient(135deg,#4ECDC4,#1A8E87)" : "#444",
-              border: "none", borderRadius: 20, color: "#fff", fontSize: 16,
-              fontWeight: 800, cursor: uploadedText.trim() ? "pointer" : "not-allowed",
-              direction: "rtl", display: "flex", alignItems: "center", gap: 10,
-            }}
-          >
-            {loading ? "⚙️ در حال پردازش..." : "🚀 ساخت ماموریت"}
-          </button>
-        </>
-      ) : (
-        <>
-          <div
-            onClick={() => pdfRef.current?.click()}
-            style={{
-              width: "100%", maxWidth: 400, border: "2px dashed #FFD700",
-              borderRadius: 20, padding: "30px 20px", textAlign: "center",
-              cursor: "pointer", marginBottom: 16, background: "rgba(255,215,0,0.05)",
-            }}
-          >
-            <div style={{ fontSize: 42 }}>{pdfFile ? "📄" : "📁"}</div>
-            <div style={{ color: "#fff", direction: "rtl", marginTop: 8 }}>
-              {pdfFile ? pdfFile.name : "برای انتخاب فایل PDF کتاب درسی کلیک کن"}
-            </div>
-            <input ref={pdfRef} type="file" accept="application/pdf" onChange={handleFile} style={{ display: "none" }} />
-          </div>
-
-          <button
-            onClick={handlePdfUploadSubmit}
-            disabled={!pdfFile}
-            style={{
-              marginTop: 16, padding: "14px 36px",
-              background: pdfFile ? "linear-gradient(135deg,#FFD700,#FF8C00)" : "#444",
-              border: "none", borderRadius: 20, color: "#000", fontSize: 16,
-              fontWeight: 800, cursor: pdfFile ? "pointer" : "not-allowed",
-              direction: "rtl", display: "flex", alignItems: "center", gap: 10,
-            }}
-          >
-            بارگذاری کتاب در سیستم
-          </button>
-        </>
       )}
     </div>
   );

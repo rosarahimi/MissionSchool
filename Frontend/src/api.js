@@ -296,6 +296,20 @@ export const deleteCourse = async (token, courseId) => {
   if (!res.ok) return { error: data?.message || data?.error || `HTTP ${res.status}` };
   return data;
 };
+
+export const ocrImage = async (token, imageFile) => {
+  const formData = new FormData();
+  formData.append('image', imageFile);
+  const res = await fetch(`${API_URL}/curriculum/ocr`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+    body: formData,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { error: data?.message || data?.error || `HTTP ${res.status}` };
+  return data;
+};
+
 export const getDetailedResults = async (token) => {
   const res = await fetch(`${API_URL}/user/results`, {
     headers: { 'Authorization': `Bearer ${token}` },

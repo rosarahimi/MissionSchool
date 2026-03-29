@@ -416,6 +416,53 @@ router.post('/lessons/:id/missions/generate-from-text', auth, requireTeacher, as
   }
 });
 
+// OCR endpoint for extracting text from images
+router.post('/ocr', auth, requireTeacher, upload.single('image'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No image file provided' });
+    }
+
+    const base64 = req.file.buffer.toString('base64');
+    const mediaType = req.file.mimetype;
+
+    const apiKey = process.env.ANTHROPIC_API_KEY;
+    if (!apiKey) {
+      return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
+    }
+
+    const response = await axios.post(
+      'https://api.anthropic.com/v1/messages',
+      {
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+            { type: 'text', text: 'Please extract all text from this textbook page. Return only the text, preserving paragraphs. No extra commentary.' }
+          ]
+        }]
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'authorization': `Bearer ${apiKey}`,
+        },
+        timeout: 60_000,
+      }
+    );
+
+    const text = response.data?.content?.map(i => i.text || "").join("") || "";
+    res.json({ success: true, text });
+  } catch (err) {
+    const status = err?.response?.status || 500;
+    const upstream = err?.response?.data;
+    const detail = upstream?.error?.message || err.message || 'Unknown error';
+    res.status(status).json({ error: `OCR failed: ${detail}` });
+  }
+});
+
 router.get('/textbooks/status/:subject/:grade?', auth, async (req, res) => {
   try {
     const subject = req.params.subject;
