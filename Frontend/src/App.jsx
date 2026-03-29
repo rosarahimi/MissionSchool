@@ -2947,22 +2947,11 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
     }
     (async () => {
       try {
-        const [coursesData, pdfData] = await Promise.all([
-          api.curriculumCourses(token, { grade, subject: subject.id }),
+        const [lessonsData, pdfData] = await Promise.all([
+          api.curriculumLessons(token, { grade, subject: subject.id }),
           api.curriculumTextbookStatus(token, subject.id, grade)
         ]);
 
-        const courseId = Array.isArray(coursesData) ? coursesData?.[0]?._id : null;
-        if (!courseId) {
-          setChapters([]);
-          if (pdfData?.exists) {
-            setPdfUrl((import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/$/, '') + pdfData.url);
-          }
-          setLoading(false);
-          return;
-        }
-
-        const lessonsData = await api.curriculumLessons(token, { courseId });
         setChapters(Array.isArray(lessonsData) ? lessonsData : []);
 
         if (pdfData?.exists) {

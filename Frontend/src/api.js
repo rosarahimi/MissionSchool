@@ -209,6 +209,8 @@ export const curriculumLessons = async (token, params = {}) => {
   const qs = new URLSearchParams();
   if (params.courseId) qs.set('courseId', params.courseId);
   if (params.chapterId) qs.set('chapterId', params.chapterId);
+  if (params.grade !== undefined && params.grade !== null) qs.set('grade', String(params.grade));
+  if (params.subject) qs.set('subject', params.subject);
   if (params.includeUnlinked) qs.set('includeUnlinked', '1');
   const url = `${API_URL}/curriculum/lessons${qs.toString() ? `?${qs.toString()}` : ''}`;
   const res = await fetch(url, {
