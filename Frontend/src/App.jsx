@@ -2,7 +2,10 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import { useTranslation } from 'react-i18next';
 import * as api from "./api";
+import "./i18n";
+import { LanguageSwitcher } from "./components/LanguageSwitcher";
 
 // ── Inline styles (no Tailwind needed beyond defaults) ──────────────────────
 const COLORS = {
@@ -16,12 +19,12 @@ const COLORS = {
 };
 
 const SUBJECTS = [
-  { id: "persian", label: "فارسی", emoji: "📚", dir: "rtl", color: COLORS.persian },
-  { id: "math", label: "ریاضی", emoji: "➗", dir: "rtl", color: COLORS.math },
-  { id: "science", label: "علوم", emoji: "🔬", dir: "rtl", color: COLORS.science },
-  { id: "quran", label: "قرآن", emoji: "🕌", dir: "rtl", color: COLORS.quran },
-  { id: "english", label: "انگلیسی", emoji: "🇬🇧", dir: "ltr", color: COLORS.english },
-  { id: "arabic", label: "عربی", emoji: "📝", dir: "rtl", color: COLORS.arabic },
+  { id: "english", labelKey: "subjects.english", emoji: "🇺🇸", dir: "ltr", color: COLORS.english },
+  { id: "math", labelKey: "subjects.math", emoji: "➗", dir: "rtl", color: COLORS.math },
+  { id: "science", labelKey: "subjects.science", emoji: "🔬", dir: "rtl", color: COLORS.science },
+  { id: "computer", labelKey: "subjects.computer", emoji: "💻", dir: "rtl", color: COLORS.computer },
+  { id: "persian", labelKey: "subjects.persian", emoji: "📚", dir: "rtl", color: COLORS.persian },
+  { id: "arabic", labelKey: "subjects.arabic", emoji: "📝", dir: "rtl", color: COLORS.arabic },
 ];
 
 function shuffle(arr) {
@@ -42,12 +45,12 @@ function normalizeOrderText(s) {
 }
 
 const BADGES = [
-  { id: "first_star", emoji: "⭐", label: "اولین ستاره", condition: (s) => s.totalStars >= 1 },
-  { id: "ten_stars", emoji: "🌟", label: "۱۰ ستاره", condition: (s) => s.totalStars >= 10 },
-  { id: "speed_demon", emoji: "⚡", label: "سریع‌الفهم", condition: (s) => s.fastAnswers >= 3 },
-  { id: "perfect", emoji: "💎", label: "بی‌نقص", condition: (s) => s.perfectStages >= 1 },
-  { id: "lesson_done", emoji: "🎓", label: "درس کامل", condition: (s) => s.completedLessons >= 1 },
-  { id: "four_lessons", emoji: "🏆", label: "قهرمان روز", condition: (s) => s.completedLessons >= 6 },
+  { id: "first_star", emoji: "⭐", labelKey: "badges.first_star", condition: (s) => s.totalStars >= 1 },
+  { id: "ten_stars", emoji: "🌟", labelKey: "badges.ten_stars", condition: (s) => s.totalStars >= 10 },
+  { id: "speed_demon", emoji: "⚡", labelKey: "badges.speed_demon", condition: (s) => s.fastAnswers >= 3 },
+  { id: "perfect", emoji: "💎", labelKey: "badges.perfect", condition: (s) => s.perfectStages >= 1 },
+  { id: "lesson_done", emoji: "🎓", labelKey: "badges.lesson_done", condition: (s) => s.completedLessons >= 1 },
+  { id: "four_lessons", emoji: "🏆", labelKey: "badges.four_lessons", condition: (s) => s.completedLessons >= 6 },
 ];
 
 // ─── Live Clock Component ────────────────────────────────────────────────
@@ -135,6 +138,7 @@ function GlobalStyles() {
 }
 
 function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
+  const { t } = useTranslation();
   const [grade, setGrade] = useState(3);
   const [subject, setSubject] = useState('persian');
   const [loading, setLoading] = useState(true);
@@ -229,7 +233,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
   }
 
   async function removeCourse(courseId) {
-    if (!confirm('این Course حذف شود؟ (فصل‌ها و درس‌های مرتبط هم حذف می‌شوند)')) return;
+    if (!confirm(t('confirm.deleteCourse'))) return;
     setBusyKey(`course-del-${courseId}`);
     try {
       const res = await api.deleteCourse(token, courseId);
@@ -334,7 +338,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
       }
       setMissionManagerLesson(prev => prev ? { ...prev, missions: parsed } : prev);
       setLessons(prev => prev.map(l => (l._id === missionManagerLesson._id ? { ...l, missions: parsed } : l)));
-      alert('ماموریت‌ها ذخیره شدند');
+      alert(t('dashboard.missionsSaved'));
     } finally {
       setBusyKey('');
     }
@@ -344,7 +348,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     if (!missionManagerLesson?._id) return;
     const lessonText = String(missionManagerLesson?.content || '').trim();
     if (!lessonText) {
-      alert('محتوای درس خالی است');
+      alert(t('errors.emptyLessonContent'));
       return;
     }
     setBusyKey('mission-auto');
@@ -411,7 +415,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
   }
 
   async function deleteTextbookPdf() {
-    if (!confirm('PDF کتاب حذف شود؟')) return;
+    if (!confirm(t('confirm.deletePdf'))) return;
     setBusyKey('pdf-delete');
     try {
       const res = await api.curriculumTextbookDelete(token, subject, grade);
@@ -428,7 +432,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
   async function extractMissionsFromPage() {
     if (!missionTargetLessonId) {
-      alert('اول یک درس را برای ذخیره ماموریت انتخاب کن');
+      alert(t('errors.noLessonSelected'));
       return;
     }
     if (!pageText.trim()) {
@@ -485,7 +489,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
   }
 
   async function removeLesson(lessonId) {
-    if (!confirm('این درس حذف شود؟')) return;
+    if (!confirm(t('confirm.deleteLesson'))) return;
     setBusyKey(`lesson-del-${lessonId}`);
     try {
       const res = await api.deleteLesson(token, lessonId);
@@ -510,11 +514,11 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     const title = String(newLessonTitle || '').trim();
     const content = String(newLessonContent || '').trim();
     if (!Number.isFinite(ch)) {
-      alert('شماره فصل را درست وارد کن');
+      alert(t('errors.invalidChapter'));
       return;
     }
     if (!title || !content) {
-      alert('عنوان و محتوا الزامی است');
+      alert(t('errors.titleRequired'));
       return;
     }
     setBusyKey('lesson-create');
@@ -592,7 +596,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     setBusyKey('build');
     try {
       const res = await api.buildTextbook(token, { grade: course.grade, subject: course.subject, replaceExisting: false });
-      if (!res.success) alert(res.error || 'خطا در ساخت فصل‌ها');
+      if (!res.success) alert(res.error || t('errors.buildFailed'));
       await loadStatus();
       if (res.courseId) {
         setSelectedCourseId(String(res.courseId));
@@ -609,7 +613,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     try {
       const chapterNum = editChapter === '' ? undefined : Number(editChapter);
       if (editChapter !== '' && !Number.isFinite(chapterNum)) {
-        alert('شماره درس/فصل نامعتبر است');
+        alert(t('errors.invalidChapter'));
         return;
       }
       const res = await api.updateLesson(token, selectedLessonId, { title: editTitle, content: editContent, chapter: chapterNum, orderIndex: chapterNum });
@@ -634,8 +638,8 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
   if (!isTeacher) {
     return (
       <div style={{ minHeight: '100vh', padding: 24, background: '#0f1220', color: '#fff', fontFamily: "'Vazirmatn','Segoe UI',sans-serif" }}>
-        <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>← برگشت</button>
-        <div style={{ marginTop: 20, direction: 'rtl' }}>دسترسی این بخش فقط برای معلم فعال است.</div>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>← {t('nav.back')}</button>
+        <div style={{ marginTop: 20, direction: 'rtl' }}>{t('dashboard.accessDenied')}</div>
       </div>
     );
   }
@@ -646,18 +650,18 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
   return (
     <div style={{ minHeight: '100vh', padding: 20, background: 'linear-gradient(135deg,#0f1220,#16213e)', color: '#fff', fontFamily: "'Vazirmatn','Segoe UI',sans-serif" }}>
-      <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>← برگشت</button>
+      <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>← {t('nav.back')}</button>
 
       <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <input type="number" value={grade} onChange={(e) => setGrade(Number(e.target.value))} style={{ padding: 10, borderRadius: 10, width: 120 }} />
         <select value={subject} onChange={(e) => setSubject(e.target.value)} style={{ padding: 10, borderRadius: 10 }}>
-          {SUBJECTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+          {SUBJECTS.map(s => <option key={s.id} value={s.id}>{t(s.labelKey)}</option>)}
         </select>
         <button onClick={async () => { await loadAllCourses(); setShowCourseManager(true); }} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 800 }}>
-          📚 مقاطع/دروس
+          {t('nav.courses')}
         </button>
         <button onClick={loadStatus} disabled={loading} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 800 }}>
-          {loading ? '...' : '🔄 بروزرسانی'}
+          {loading ? '...' : t('nav.refresh')}
         </button>
       </div>
 
@@ -679,35 +683,35 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
             color: '#fff'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-              <div style={{ direction: 'rtl', fontWeight: 900 }}>مدیریت مقاطع و دروس (Course)</div>
-              <button onClick={() => setShowCourseManager(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
+              <div style={{ direction: 'rtl', fontWeight: 900 }}>{t('dashboard.courseManager')}</div>
+              <button onClick={() => setShowCourseManager(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>{t('nav.close')}</button>
             </div>
 
             <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
-              <div style={{ direction: 'rtl', fontWeight: 900 }}>افزودن Course جدید</div>
+              <div style={{ direction: 'rtl', fontWeight: 900 }}>{t('dashboard.addCourse')}</div>
               <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, alignItems: 'center' }}>
-                <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>پایه</div>
+                <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>{t('dashboard.grade')}</div>
                 <input type="number" value={newCourseGrade} onChange={(e) => setNewCourseGrade(Number(e.target.value))} style={{ padding: 10, borderRadius: 10 }} />
 
-                <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>درس</div>
+                <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>{t('dashboard.subject')}</div>
                 <select value={newCourseSubject} onChange={(e) => setNewCourseSubject(e.target.value)} style={{ padding: 10, borderRadius: 10 }}>
-                  {SUBJECTS.map(s => <option key={s.id} value={s.id}>{s.label}</option>)}
+                  {SUBJECTS.map(s => <option key={s.id} value={s.id}>{t(s.labelKey)}</option>)}
                 </select>
 
-                <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>عنوان (اختیاری)</div>
+                <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>{t('dashboard.courseTitle')}</div>
                 <input value={newCourseTitle} onChange={(e) => setNewCourseTitle(e.target.value)} style={{ padding: 10, borderRadius: 10, direction: 'rtl' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
                 <button onClick={createCourse} disabled={busyKey === 'course-create'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-                  {busyKey === 'course-create' ? '...' : '➕ افزودن'}
+                  {busyKey === 'course-create' ? '...' : `➕ ${t('dashboard.addCourse')}`}
                 </button>
               </div>
             </div>
 
             <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
-              <div style={{ direction: 'rtl', fontWeight: 900 }}>لیست Courseها</div>
+              <div style={{ direction: 'rtl', fontWeight: 900 }}>{t('dashboard.courseList')}</div>
               {allCourses.length === 0 ? (
-                <div style={{ marginTop: 10, direction: 'rtl', opacity: 0.8 }}>هنوز Course ای ثبت نشده.</div>
+                <div style={{ marginTop: 10, direction: 'rtl', opacity: 0.8 }}>{t('dashboard.noCourses')}</div>
               ) : (
                 <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
                   {allCourses.map(c => (
@@ -726,7 +730,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                           background: 'none', border: 'none', cursor: 'pointer',
                           color: '#fff', fontWeight: 900, direction: 'rtl', textAlign: 'right', padding: 0
                         }}>
-                          پایه {c.grade} — {SUBJECTS.find(s => s.id === c.subject)?.label || c.subject}
+                          {t('dashboard.grade')} {c.grade} — {t(SUBJECTS.find(s => s.id === c.subject)?.labelKey || c.subject)}
                           {c.title ? ` | ${c.title}` : ''}
                         </button>
                         <button onClick={() => removeCourse(c._id)} disabled={busyKey === `course-del-${c._id}`} style={{
@@ -770,23 +774,23 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
             color: '#fff'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-              <div style={{ direction: 'rtl', fontWeight: 900 }}>آپلود کل کتاب (PDF)</div>
-              <button onClick={() => setShowPdfUpload(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
+              <div style={{ direction: 'rtl', fontWeight: 900 }}>{t('dashboard.pdfUpload')}</div>
+              <button onClick={() => setShowPdfUpload(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>{t('nav.close')}</button>
             </div>
 
             {course?.pdf?.filename && (
               <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', direction: 'rtl' }}>
-                <div style={{ fontWeight: 900 }}>فایل فعلی</div>
+                <div style={{ fontWeight: 900 }}>{t('dashboard.currentFile')}</div>
                 <div style={{ marginTop: 6, opacity: 0.85 }}>{course.pdf.filename}</div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
                   <button onClick={() => {
                     const base = (import.meta.env.VITE_API_URL || 'http://localhost:5001').replace(/\/$/, '');
                     window.open(`${base}/api/curriculum/textbooks/pdf/${subject}/${grade}`, '_blank');
                   }} style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>
-                    👁️ مشاهده
+                    {t('dashboard.viewPdf')}
                   </button>
                   <button onClick={deleteTextbookPdf} disabled={busyKey === 'pdf-delete'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', background: 'rgba(255,77,77,0.18)', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>
-                    {busyKey === 'pdf-delete' ? '...' : '🗑️ حذف'}
+                    {busyKey === 'pdf-delete' ? '...' : t('dashboard.deletePdf')}
                   </button>
                 </div>
               </div>
@@ -804,13 +808,13 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
             }}>
               <div style={{ fontSize: 34 }}>{dashboardPdfFile ? '📄' : '📁'}</div>
               <div style={{ direction: 'rtl', marginTop: 6, opacity: 0.9 }}>
-                {dashboardPdfFile ? dashboardPdfFile.name : 'برای انتخاب فایل PDF کلیک کن'}
+                {dashboardPdfFile ? dashboardPdfFile.name : t('dashboard.selectPdf')}
               </div>
               <input ref={dashboardPdfRef} type="file" accept="application/pdf" onChange={(e) => {
                 const f = e.target.files?.[0];
                 if (!f) return;
                 if (f.type !== 'application/pdf') {
-                  alert('لطفا فایل PDF انتخاب کنید.');
+                  alert(t('errors.selectPdf'));
                   return;
                 }
                 setDashboardPdfFile(f);
@@ -1343,7 +1347,11 @@ function buildMissions(subjectId) {
 
 // ─── Main App ─────────────────────────────────────────────────────────────
 export default function App() {
-  const [screen, setScreen] = useState(localStorage.getItem('token') ? 'home' : 'login'); // home | upload | game | summary | hall | login
+  const { t, i18n } = useTranslation();
+  const [langReady, setLangReady] = useState(false);
+  
+  // All state hooks must be declared BEFORE any early returns
+  const [screen, setScreen] = useState(localStorage.getItem('token') ? 'home' : 'login');
   const [hallTab, setHallTab] = useState('badges');
   const [hallSubject, setHallSubject] = useState(null);
   const [uploadedText, setUploadedText] = useState("");
@@ -1358,68 +1366,102 @@ export default function App() {
   const [stage, setStage] = useState(1);
   const [score, setScore] = useState(0);
   const [stars, setStars] = useState(0);
-  const [feedback, setFeedback] = useState(null); // null | {correct, exp}
+  const [feedback, setFeedback] = useState(null);
   const [gameStats, setGameStats] = useState({ totalStars: 0, fastAnswers: 0, perfectStages: 0, completedLessons: 0 });
   const [earnedBadges, setEarnedBadges] = useState([]);
   const [stageResults, setStageResults] = useState({ correct: 0, total: 0 });
   const [dragWords, setDragWords] = useState([]);
   const [selectedWords, setSelectedWords] = useState([]);
   const [fillVal, setFillVal] = useState("");
-  const [timer, setTimer] = useState(null);
   const [timeLeft, setTimeLeft] = useState(30);
   const [timerActive, setTimerActive] = useState(false);
   const [completedSubjects, setCompletedSubjects] = useState([]);
   const [showStageComplete, setShowStageComplete] = useState(false);
-  const [missionHistory, setMissionHistory] = useState([]); // Array of {question, correct, userAnswer, correctAnswer}
+  const [missionHistory, setMissionHistory] = useState([]);
   const [photoFile, setPhotoFile] = useState(null);
   const fileRef = useRef();
   const timerRef = useRef();
-
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [user, setUser] = useState(null);
-  const [authMode, setAuthMode] = useState('login'); // login | register
+  const [authMode, setAuthMode] = useState('login');
 
+  // Initialize language direction - default to English
   useEffect(() => {
-    if (token) {
-      api.getProfile(token).then(data => {
-        if (data.email) {
-          setUser(data);
-          
-          // Use student data for stats if current user is a parent
-          const sourceData = data.role === 'parent' && data.linkedStudent ? data.linkedStudent : data;
-          
-          const serverStats = {
-            totalStars: sourceData.scores?.reduce((acc, curr) => acc + (curr.stars || 0), 0) || 0,
-            completedLessons: new Set(sourceData.scores?.map(s => s.subject) || []).size,
-            fastAnswers: sourceData.fastAnswers || 0,
-            perfectStages: sourceData.perfectStages || 0,
-          };
-          setGameStats(prev => ({ ...prev, ...serverStats }));
-          setEarnedBadges(sourceData.badges || []);
-          setCompletedSubjects([...new Set(sourceData.scores?.map(s => s.subject) || [])]);
-        } else {
-          setToken(null);
-          localStorage.removeItem('token');
-        }
-      });
-    }
-  }, [token]);
+    const savedLang = localStorage.getItem('i18nLanguage') || 'en';
+    i18n.changeLanguage(savedLang).then(() => {
+      document.dir = savedLang === 'fa' ? 'rtl' : 'ltr';
+      setLangReady(true);
+    });
+  }, [i18n]);
 
-  // Badge check
+  // Profile loading - only runs when langReady is true
   useEffect(() => {
+    if (!langReady || !token) return;
+    api.getProfile(token).then(data => {
+      if (data.email) {
+        setUser(data);
+        const sourceData = data.role === 'parent' && data.linkedStudent ? data.linkedStudent : data;
+        const serverStats = {
+          totalStars: sourceData.scores?.reduce((acc, curr) => acc + (curr.stars || 0), 0) || 0,
+          completedLessons: new Set(sourceData.scores?.map(s => s.subject) || []).size,
+          fastAnswers: sourceData.fastAnswers || 0,
+          perfectStages: sourceData.perfectStages || 0,
+        };
+        setGameStats(prev => ({ ...prev, ...serverStats }));
+        setEarnedBadges(sourceData.badges || []);
+        setCompletedSubjects([...new Set(sourceData.scores?.map(s => s.subject) || [])]);
+      } else {
+        setToken(null);
+        localStorage.removeItem('token');
+      }
+    });
+  }, [langReady, token]);
+
+  // Badge check - only runs when langReady is true
+  useEffect(() => {
+    if (!langReady) return;
     const newBadges = BADGES.filter(b => b.condition(gameStats) && !earnedBadges.includes(b.id));
     if (newBadges.length) {
       const addedBadges = newBadges.map(b => b.id);
       setEarnedBadges(prev => [...prev, ...addedBadges]);
-
-      // Save new badges to backend
       if (token) {
         addedBadges.forEach(badge => {
           api.updateProgress(token, { badge });
         });
       }
     }
-  }, [gameStats, token, earnedBadges]);
+  }, [langReady, gameStats, token, earnedBadges]);
+
+  // Timer - only runs when langReady is true
+  useEffect(() => {
+    if (!langReady) return;
+    if (timerActive && timeLeft > 0) {
+      timerRef.current = setTimeout(() => setTimeLeft(t => t - 1), 1000);
+    } else if (timerActive && timeLeft === 0) {
+      handleAnswer(null, true);
+    }
+    return () => clearTimeout(timerRef.current);
+  }, [langReady, timerActive, timeLeft]);
+
+  // Don't render until language is ready
+  if (!langReady) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg,#1a1a2e,#16213e)'
+      }}>
+        <div style={{ color: '#fff', fontSize: 24 }}>Loading...</div>
+      </div>
+    );
+  }
+
+  // Helper to get translated subject label
+  const getSubjectLabel = (subjectId) => {
+    return t(`subjects.${subjectId}`);
+  };
 
   const handleLogin = async (email, password) => {
     const res = await api.login(email, password);
@@ -1446,16 +1488,6 @@ export default function App() {
     localStorage.removeItem('token');
     setScreen('login');
   };
-
-  // Timer
-  useEffect(() => {
-    if (timerActive && timeLeft > 0) {
-      timerRef.current = setTimeout(() => setTimeLeft(t => t - 1), 1000);
-    } else if (timerActive && timeLeft === 0) {
-      handleAnswer(null, true);
-    }
-    return () => clearTimeout(timerRef.current);
-  }, [timerActive, timeLeft]);
 
   function startMissions(subjectId, customMissions, lessonId = null) {
     const ms = Array.isArray(customMissions) ? customMissions : buildMissions(subjectId);
@@ -1754,44 +1786,58 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
 
 
 
-  if (screen === "summary") return <SummaryScreen
-    subject={subj} stars={stars} score={score}
-    stageResults={stageResults} missions={missions}
-    onHome={() => setScreen("home")}
-    completedSubjects={completedSubjects}
-    gameStats={gameStats}
-    earnedBadges={earnedBadges}
-  />;
+  if (screen === "summary") return (
+    <>
+      <GlobalStyles />
+      <SummaryScreen
+        subject={subj} stars={stars} score={score}
+        stageResults={stageResults} missions={missions}
+        onHome={() => setScreen("home")}
+        completedSubjects={completedSubjects}
+        gameStats={gameStats}
+        earnedBadges={earnedBadges}
+      />
+    </>
+  );
 
   if (screen === "game" && mission) return (
-    <GameScreen
-      subject={subj} mission={mission} missionIdx={missionIdx}
-      totalMissions={missions.length} stage={stage} totalStages={totalStages}
-      stageIdx={stageIdx} stageProgress={stageProgress}
-      score={score} stars={stars}
-      feedback={feedback} timeLeft={timeLeft}
-      dragWords={dragWords} setDragWords={setDragWords}
-      selectedWords={selectedWords} setSelectedWords={setSelectedWords}
-      fillVal={fillVal} setFillVal={setFillVal}
-      onAnswer={handleAnswer} onNext={nextMission}
-      showStageComplete={showStageComplete}
-    />
+    <>
+      <GlobalStyles />
+      <GameScreen
+        subject={subj} mission={mission} missionIdx={missionIdx}
+        totalMissions={missions.length} stage={stage} totalStages={totalStages}
+        stageIdx={stageIdx} stageProgress={stageProgress}
+        score={score} stars={stars}
+        feedback={feedback} timeLeft={timeLeft}
+        dragWords={dragWords} setDragWords={setDragWords}
+        selectedWords={selectedWords} setSelectedWords={setSelectedWords}
+        fillVal={fillVal} setFillVal={setFillVal}
+        onAnswer={handleAnswer} onNext={nextMission}
+        showStageComplete={showStageComplete}
+      />
+    </>
   );
 
 
 
-  if (screen === "study") return <StudyScreen
-    subject={subj}
-    lesson={currentLessonItem}
-    onBack={() => setScreen("chapters")}
-    onPlay={() => startMissions(activeSubject, currentLessonItem?.missions, currentLessonItem?._id)}
-  />;
+  if (screen === "study") return (
+    <>
+      <GlobalStyles />
+      <StudyScreen
+        subject={subj}
+        lesson={currentLessonItem}
+        onBack={() => setScreen("chapters")}
+        onPlay={() => startMissions(activeSubject, currentLessonItem?.missions, currentLessonItem?._id)}
+      />
+    </>
+  );
 
   return null;
 }
 
 // ─── HOME SCREEN ──────────────────────────────────────────────────────────
 function HomeScreen({ onStart, completedSubjects, gameStats, earnedBadges, onHall, user, onLogout, onDashboard }) {
+  const { t } = useTranslation();
   return (
     <div style={{
       minHeight: "100vh", background: "linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)",
@@ -1811,7 +1857,7 @@ function HomeScreen({ onStart, completedSubjects, gameStats, earnedBadges, onHal
           fontWeight: 800,
           marginBottom: 10,
         }}>
-          🧰 داشبورد محتوا
+          {t('nav.dashboard')}
         </button>
       )}
       {/* Dashboard Floating Nav Bar */}
@@ -1872,8 +1918,8 @@ function HomeScreen({ onStart, completedSubjects, gameStats, earnedBadges, onHal
           background: 'rgba(255,77,77,0.15)', border: '1px solid rgba(255,77,77,0.3)',
           color: '#ff4d4d', padding: '10px', borderRadius: '16px', cursor: 'pointer',
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          transition: 'all 0.2s', marginLeft: '8px'
-        }} title="خروج">
+          transition: 'all 0.2s'
+        }} title={t('nav.logout')}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
             <polyline points="16 17 21 12 16 7"></polyline>
@@ -1902,10 +1948,10 @@ function HomeScreen({ onStart, completedSubjects, gameStats, earnedBadges, onHal
           backgroundSize: "200%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
           animation: "shimmer 3s linear infinite",
         }}>
-          {user?.role === 'parent' ? `گزارش پیشرفت ${user?.linkedStudent?.name || 'دانش‌آموز'}` : 'یادگیری ماجراجویانه!'}
+          {user?.role === 'parent' ? `${t('home.parentReport')} ${user?.linkedStudent?.name || t('home.student')}` : t('home.welcomeTitle')}
         </h1>
         <p style={{ color: "#aaa", fontSize: 15, direction: "rtl" }}>
-          {user?.role === 'parent' ? 'نظارت بر ماموریت‌های انجام شده 🌟' : 'هر درس یک ماموریت جدید 🌟'}
+          {user?.role === 'parent' ? `${t('home.parentSubtitle')} 🌟` : `${t('home.subtitle')} 🌟`}
         </p>
       </div>
 
@@ -1939,9 +1985,9 @@ function HomeScreen({ onStart, completedSubjects, gameStats, earnedBadges, onHal
             }}>
               {done && <div style={{ position: "absolute", top: 6, right: 8, fontSize: 16 }}>✅</div>}
               <div style={{ fontSize: 36, marginBottom: 6 }}>{s.emoji}</div>
-              <div style={{ fontWeight: 800, fontSize: 16, direction: s.dir }}>{s.label}</div>
+              <div style={{ fontWeight: 800, fontSize: 16, direction: s.dir }}>{t(s.labelKey)}</div>
               <div style={{ fontSize: 11, opacity: 0.8, marginTop: 4 }}>
-                {done ? "تکمیل شد!" : "شروع کن"}
+                {done ? t('home.completed') : t('home.start')}
               </div>
             </button>
           );
@@ -1956,7 +2002,7 @@ function HomeScreen({ onStart, completedSubjects, gameStats, earnedBadges, onHal
         }}>
           <div style={{ fontSize: 32 }}>🏆🎉🏆</div>
           <div style={{ fontWeight: 900, fontSize: 18, color: "#fff", direction: "rtl" }}>
-            قهرمان روز! همه ۶ درس رو تموم کردی!
+            {t('home.dailyChampion')}
           </div>
         </div>
       )}
@@ -2935,6 +2981,16 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
                 <span style={{ color: '#aaa', fontSize: 14 }}>{user?.role === 'parent' ? 'وضعیت کل فرزند:' : 'وضعیت ماموریت‌ها:'}</span>
                 <span style={{ color: '#FFD700', fontSize: 14, fontWeight: 'bold' }}>{completedSubjects.length} درس کامل شده</span>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16, marginBottom: 8 }}>
+                <LanguageSwitcher style={{ 
+                  padding: '8px 16px',
+                  fontSize: '14px',
+                  borderRadius: '20px',
+                  border: '2px solid rgba(255,255,255,0.2)',
+                  background: 'rgba(255,255,255,0.05)'
+                }} />
               </div>
             </div>
 
