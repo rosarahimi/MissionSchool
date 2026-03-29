@@ -177,6 +177,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
   const [newLessonTitle, setNewLessonTitle] = useState('');
   const [newLessonContent, setNewLessonContent] = useState('');
   const [addLessonCourseId, setAddLessonCourseId] = useState('');
+  const [isNewChapter, setIsNewChapter] = useState(false);
   const [selectedLessonId, setSelectedLessonId] = useState(null);
   const [selectedLesson, setSelectedLesson] = useState(null);
   const [editChapter, setEditChapter] = useState('');
@@ -977,7 +978,20 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                   {busyKey === 'build' ? 'در حال ساخت...' : '🏗️ Build فصل‌ها'}
                 </button>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <button onClick={() => setShowAddLesson(true)} disabled={!course.courseId} style={{ width: 44, height: 44, borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                  <button onClick={() => {
+                    // Calculate next chapter number for new chapter
+                    const maxCh = lessons.length > 0
+                      ? Math.max(...lessons.map(l => Number(l.chapter) || 0))
+                      : 0;
+                    const nextCh = maxCh + 1;
+                    setAddLessonCourseId(String(course.courseId || ''));
+                    setNewLessonChapter(String(nextCh));
+                    setNewLessonChapterTitle('');
+                    setNewLessonTitle('');
+                    setNewLessonContent('');
+                    setIsNewChapter(true); // Creating new chapter - fields should be editable
+                    setShowAddLesson(true);
+                  }} disabled={!course.courseId} style={{ width: 44, height: 44, borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
                     +
                   </button>
                 </div>
@@ -1077,6 +1091,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                           setNewLessonChapterTitle(String(chapterTitle || ''));
                           setNewLessonTitle('');
                           setNewLessonContent('');
+                          setIsNewChapter(false); // Adding to existing chapter - fields should be read-only
                           setShowAddLesson(true);
                         }}
                         disabled={!courseId}
@@ -1273,10 +1288,33 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
             <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, alignItems: 'center' }}>
               <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>شماره فصل</div>
-              <input value={newLessonChapter} onChange={(e) => setNewLessonChapter(e.target.value)} style={{ padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
+              <input 
+                value={newLessonChapter} 
+                readOnly={!isNewChapter}
+                onChange={(e) => isNewChapter && setNewLessonChapter(e.target.value)}
+                style={{ 
+                  padding: 10, borderRadius: 10, 
+                  border: isNewChapter ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.10)', 
+                  background: isNewChapter ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)', 
+                  color: isNewChapter ? '#fff' : '#aaa',
+                  cursor: isNewChapter ? 'text' : 'default'
+                }} 
+              />
 
               <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>عنوان فصل</div>
-              <input value={newLessonChapterTitle} onChange={(e) => setNewLessonChapterTitle(e.target.value)} style={{ padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: 'rtl' }} />
+              <input 
+                value={newLessonChapterTitle} 
+                readOnly={!isNewChapter}
+                onChange={(e) => isNewChapter && setNewLessonChapterTitle(e.target.value)}
+                style={{ 
+                  padding: 10, borderRadius: 10, 
+                  border: isNewChapter ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.10)', 
+                  background: isNewChapter ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)', 
+                  color: isNewChapter ? '#fff' : '#aaa',
+                  cursor: isNewChapter ? 'text' : 'default',
+                  direction: 'rtl' 
+                }} 
+              />
 
               <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>عنوان درس</div>
               <input value={newLessonTitle} onChange={(e) => setNewLessonTitle(e.target.value)} style={{ padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: 'rtl' }} />
@@ -2729,6 +2767,11 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
   const [isLoadingResults, setIsLoadingResults] = useState(false);
   const [filterSubject, setFilterSubject] = useState(initialSubject || null);
   
+  // Teacher view states
+  const [teacherView, setTeacherView] = useState(false);
+  const [teacherStudents, setTeacherStudents] = useState([]);
+  const [selectedStudent, setSelectedStudent] = useState(null);
+  
   useEffect(() => {
     if (initialTab === 'results') {
       fetchDetailedResults(initialSubject || null);
@@ -2736,18 +2779,46 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
   }, [initialTab, initialSubject]);
 
   const fetchDetailedResults = async (sId = null) => {
-    if (!token || (user?.role !== 'parent' && user?.role !== 'student')) return;
+    if (!token) return;
     setIsLoadingResults(true);
     setFilterSubject(sId);
     try {
-      const data = await api.getDetailedResults(token);
-      setDetailedResults(data || []);
+      if (user?.role === 'teacher' || user?.role === 'admin') {
+        // Teacher view - fetch all students' results
+        const data = await api.getTeacherResults(token, { subject: sId });
+        if (data.students) {
+          setTeacherView(true);
+          setTeacherStudents(data.students);
+          // If a student is already selected, show their results
+          if (selectedStudent) {
+            const student = data.students.find(s => s.studentId === selectedStudent.studentId);
+            if (student) {
+              setSelectedStudent(student);
+              setDetailedResults(student.scores || []);
+            } else {
+              setDetailedResults([]);
+            }
+          } else {
+            setDetailedResults([]);
+          }
+        }
+      } else {
+        // Student or Parent view
+        const data = await api.getDetailedResults(token);
+        setTeacherView(false);
+        setDetailedResults(data.scores || data || []);
+      }
       setTab('results');
     } catch (err) {
       console.error(err);
     } finally {
       setIsLoadingResults(false);
     }
+  };
+
+  const handleStudentSelect = (student) => {
+    setSelectedStudent(student);
+    setDetailedResults(student.scores || []);
   };
 
   const handleUpdateName = async () => {
@@ -2808,7 +2879,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
               cursor: 'pointer', transition: 'all 0.2s', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6
             }}>🏆 {user?.role === 'parent' ? 'خلاصه' : 'دستاوردها'}</button>
             
-            {(user?.role === 'parent' || user?.role === 'student') && (
+            {(user?.role === 'parent' || user?.role === 'student' || user?.role === 'teacher' || user?.role === 'admin') && (
               <button onClick={() => fetchDetailedResults(null)} style={{
                 background: tab === 'results' ? 'rgba(155,89,182,0.15)' : 'transparent',
                 color: tab === 'results' ? '#9B59B6' : '#888',
@@ -2894,17 +2965,61 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
              <h2 style={{
               fontWeight: 900, fontSize: 22, color: '#fff', marginBottom: 20, textAlign: 'center'
             }}>
-              {filterSubject 
-                ? `📝 گزارش ${SUBJECTS.find(s => s.id === filterSubject)?.label}` 
-                : '📝 گزارش کلی عملکرد'}
+              {user?.role === 'teacher' || user?.role === 'admin'
+                ? (selectedStudent 
+                    ? `📝 گزارش ${selectedStudent.studentName || selectedStudent.studentEmail}` 
+                    : '📝 گزارش عملکرد دانش‌آموزان')
+                : (filterSubject 
+                    ? `📝 گزارش ${SUBJECTS.find(s => s.id === filterSubject)?.label}` 
+                    : '📝 گزارش کلی عملکرد')
+              }
             </h2>
+            
+            {/* Teacher: Student Selector */}
+            {(user?.role === 'teacher' || user?.role === 'admin') && teacherStudents.length > 0 && (
+              <div style={{ marginBottom: 16 }}>
+                <div style={{ color: '#aaa', fontSize: 13, marginBottom: 8 }}>انتخاب دانش‌آموز:</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto' }}>
+                  {teacherStudents.map((student) => (
+                    <button
+                      key={student.studentId}
+                      onClick={() => handleStudentSelect(student)}
+                      style={{
+                        padding: '10px 14px',
+                        borderRadius: 12,
+                        border: selectedStudent?.studentId === student.studentId 
+                          ? '2px solid #9B59B6' 
+                          : '1px solid rgba(255,255,255,0.1)',
+                        background: selectedStudent?.studentId === student.studentId 
+                          ? 'rgba(155,89,182,0.2)' 
+                          : 'rgba(255,255,255,0.04)',
+                        color: '#fff',
+                        cursor: 'pointer',
+                        textAlign: 'right',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                      }}
+                    >
+                      <span>{student.studentName || student.studentEmail}</span>
+                      <span style={{ color: '#aaa', fontSize: 11 }}>کلاس {student.grade} • {student.scores?.length || 0} گزارش</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             
             {isLoadingResults ? (
                <div style={{ textAlign: 'center', padding: '40px' }}>
                 <div style={{ width: 30, height: 30, border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#9B59B6', borderRadius: '50%', display: 'inline-block', animation: 'spin 1s linear infinite' }}></div>
                </div>
             ) : detailedResults.length === 0 ? (
-              <p style={{ color: '#aaa', textAlign: 'center' }}>هنوز نتیجه‌ای ثبت نشده است.</p>
+              <p style={{ color: '#aaa', textAlign: 'center' }}>
+                {(user?.role === 'teacher' || user?.role === 'admin') && !selectedStudent
+                  ? 'لطفاً یک دانش‌آموز را انتخاب کنید'
+                  : 'هنوز نتیجه‌ای ثبت نشده است.'
+                }
+              </p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 {[...detailedResults].reverse()
@@ -2916,9 +3031,9 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 8 }}>
                           <span style={{ color: subj?.color?.bg || '#4ECDC4', fontWeight: 'bold' }}>📚 {subj?.label}</span>
                           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                            <span style={{ color: '#aaa', fontSize: 11 }}>{new Date(session.date).toLocaleDateString('fa-IR')}</span>
+                            <span style={{ color: '#aaa', fontSize: 11 }}>{new Date(session.createdAt || session.date).toLocaleDateString('fa-IR')}</span>
                             <span style={{ color: 'rgba(255,215,0,0.6)', fontSize: 11, background: 'rgba(255,215,0,0.1)', padding: '2px 6px', borderRadius: '6px' }}>
-                              🕒 {new Date(session.date).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
+                              🕒 {new Date(session.createdAt || session.date).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
                         </div>
@@ -2931,7 +3046,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                                   <span style={{ color: '#27AE60', fontWeight: 'bold' }}>✅ {res.correctAnswer}</span>
                                 ) : (
                                   <>
-                                    <span style={{ color: '#E74C3C' }}>❌ پاسخ فرزند: {res.userAnswer}</span>
+                                    <span style={{ color: '#E74C3C' }}>❌ پاسخ {user?.role === 'parent' ? 'فرزند' : 'دانش‌آموز'}: {res.userAnswer}</span>
                                     <span style={{ color: '#aaa' }}>- پاسخ صحیح: {res.correctAnswer}</span>
                                   </>
                                 )}

@@ -302,3 +302,25 @@ export const getDetailedResults = async (token) => {
   });
   return res.json();
 };
+
+// Teacher: Get all students' results (with optional filters)
+export const getTeacherResults = async (token, params = {}) => {
+  const qs = new URLSearchParams();
+  if (params.grade !== undefined && params.grade !== null) qs.set('grade', String(params.grade));
+  if (params.subject) qs.set('subject', params.subject);
+  if (params.studentId) qs.set('studentId', params.studentId);
+  
+  const url = `${API_URL}/user/results${qs.toString() ? `?${qs.toString()}` : ''}`;
+  const res = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return res.json();
+};
+
+// Teacher: Get specific student's detailed results
+export const getStudentResultsForTeacher = async (token, studentId) => {
+  const res = await fetch(`${API_URL}/user/results/${studentId}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return res.json();
+};
