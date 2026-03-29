@@ -1,7 +1,14 @@
 # Use Node.js LTS
-FROM node:20-alpine
+FROM node:20-slim
 
-RUN apk add --no-cache poppler-utils tesseract-ocr tesseract-ocr-data-fas tesseract-ocr-data-eng
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends \
+    poppler-utils \
+    tesseract-ocr \
+    tesseract-ocr-fas \
+    tesseract-ocr-eng \
+    wget \
+  && rm -rf /var/lib/apt/lists/*
 
 # Set working directory
 WORKDIR /app

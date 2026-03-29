@@ -1,4 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 import * as api from "./api";
 
 // ── Inline styles (no Tailwind needed beyond defaults) ──────────────────────
@@ -2729,9 +2732,24 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
         <h3 style={{ color: '#fff', fontSize: 22, marginTop: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 10 }}>{lesson?.title || 'آموزش'}</h3>
         <div style={{
           color: '#e0e0e0', fontSize: 18, lineHeight: 2, textAlign: 'justify',
-          whiteSpace: 'pre-line', textShadow: '0 1px 2px rgba(0,0,0,0.5)'
+          textShadow: '0 1px 2px rgba(0,0,0,0.5)',
+          direction: subject?.dir || 'rtl'
         }}>
-          {content}
+          <ReactMarkdown
+            remarkPlugins={[remarkGfm, remarkBreaks]}
+            components={{
+              h2: (props) => <div {...props} style={{ fontSize: 22, fontWeight: 900, margin: '14px 0 10px', color: '#fff' }} />,
+              h3: (props) => <div {...props} style={{ fontSize: 19, fontWeight: 900, margin: '12px 0 8px', color: '#fff' }} />,
+              hr: (props) => <hr {...props} style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.18)', margin: '14px 0' }} />,
+              p: (props) => <div {...props} style={{ margin: '0 0 10px' }} />,
+              strong: (props) => <strong {...props} style={{ color: '#fff' }} />,
+              ol: (props) => <ol {...props} style={{ margin: '0 0 10px', paddingInlineStart: 22 }} />,
+              ul: (props) => <ul {...props} style={{ margin: '0 0 10px', paddingInlineStart: 22 }} />,
+              li: (props) => <li {...props} style={{ margin: '0 0 6px' }} />,
+            }}
+          >
+            {content}
+          </ReactMarkdown>
         </div>
       </div>
 
