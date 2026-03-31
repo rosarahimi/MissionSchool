@@ -236,7 +236,7 @@ function AdminDashboardScreen({ token, user, api, onBack }) {
               outline: 'none',
             }}>
               <option value="">همه پایه‌ها</option>
-              {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => (
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(g => (
                 <option key={g} value={String(g)}>{g}</option>
               ))}
             </select>
@@ -545,11 +545,11 @@ function LiveClock() {
 
   const shamsiDate = isRTL
     ? new Intl.DateTimeFormat('fa-IR', {
-        calendar: 'persian',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-      }).format(time)
+      calendar: 'persian',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    }).format(time)
     : null;
 
   const miladiDate = new Intl.DateTimeFormat('en-US', {
@@ -632,8 +632,8 @@ function GlobalStyles() {
       html, body {
         direction: ${i18n.language === 'fa' ? 'rtl' : 'ltr'};
         font-family: ${i18n.language === 'fa'
-          ? "'Vazirmatn','Segoe UI',sans-serif"
-          : "'Segoe UI', system-ui, -apple-system, sans-serif"};
+        ? "'Vazirmatn','Segoe UI',sans-serif"
+        : "'Segoe UI', system-ui, -apple-system, sans-serif"};
       }
     `}</style>
   );
@@ -1490,7 +1490,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
         </div>
       )}
 
-      
+
 
       {course?.courseId && showPdfUpload && (
         <div onClick={() => setShowPdfUpload(false)} style={{
@@ -2014,33 +2014,33 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
             <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, alignItems: 'center' }}>
               <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', opacity: 0.85, fontWeight: 800 }}>{tx('شماره فصل', 'Chapter Number')}</div>
-              <input 
-                value={newLessonChapter} 
+              <input
+                value={newLessonChapter}
                 readOnly={!isNewChapter}
                 onChange={(e) => isNewChapter && setNewLessonChapter(e.target.value)}
-                style={{ 
-                  padding: 10, borderRadius: 10, 
-                  border: isNewChapter ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.10)', 
-                  background: isNewChapter ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)', 
+                style={{
+                  padding: 10, borderRadius: 10,
+                  border: isNewChapter ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.10)',
+                  background: isNewChapter ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)',
                   color: isNewChapter ? '#fff' : '#aaa',
                   cursor: isNewChapter ? 'text' : 'default'
-                }} 
+                }}
               />
 
               <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', opacity: 0.85, fontWeight: 800 }}>{tx('عنوان فصل', 'Chapter Title')}</div>
-              <input 
-                value={newLessonChapterTitle} 
+              <input
+                value={newLessonChapterTitle}
                 readOnly={!isNewChapter}
                 onChange={(e) => isNewChapter && setNewLessonChapterTitle(e.target.value)}
-                style={{ 
-                  padding: 10, borderRadius: 10, 
-                  border: isNewChapter ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.10)', 
-                  background: isNewChapter ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)', 
+                style={{
+                  padding: 10, borderRadius: 10,
+                  border: isNewChapter ? '1px solid rgba(255,255,255,0.18)' : '1px solid rgba(255,255,255,0.10)',
+                  background: isNewChapter ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)',
                   color: isNewChapter ? '#fff' : '#aaa',
                   cursor: isNewChapter ? 'text' : 'default',
                   direction: contentDirection(newLessonChapterTitle, isRTL),
                   textAlign: contentTextAlign(contentDirection(newLessonChapterTitle, isRTL))
-                }} 
+                }}
               />
 
               <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', opacity: 0.85, fontWeight: 800 }}>{tx('عنوان درس', 'Lesson Title')}</div>
@@ -2092,7 +2092,7 @@ export default function App() {
   const [langReady, setLangReady] = useState(false);
   const [theme, setTheme] = useState(() => localStorage.getItem('ms_theme') || 'dark');
   const [themeMode, setThemeMode] = useState(() => localStorage.getItem('ms_theme_mode') || 'kids');
-  
+
   // All state hooks must be declared BEFORE any early returns
   const [screen, setScreen] = useState(localStorage.getItem('token') ? 'home' : 'login');
   const [hallTab, setHallTab] = useState('badges');
@@ -2436,10 +2436,10 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
       <>
         <GlobalStyles />
         <AuthScreen
-        mode={authMode}
-        setMode={setAuthMode}
-        onLogin={handleLogin}
-        onRegister={handleRegister}
+          mode={authMode}
+          setMode={setAuthMode}
+          onLogin={handleLogin}
+          onRegister={handleRegister}
         />
       </>
     );
@@ -2662,7 +2662,7 @@ function HomeScreen({ onStart, completedSubjects, gameStats, earnedBadges, onHal
       }}>
         {/* Left: User Profile + Stats */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
-          
+
           <div onClick={() => onHall('profile')} style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
             {/* Avatar */}
             <div style={{
@@ -2684,10 +2684,10 @@ function HomeScreen({ onStart, completedSubjects, gameStats, earnedBadges, onHal
               </span>
             </div>
           </div>
-            
+
           {/* Compact Stats Row */}
-          <div onClick={() => onHall('badges')} style={{ 
-            display: 'flex', gap: '14px', alignItems: 'center', background: 'rgba(0,0,0,0.25)', 
+          <div onClick={() => onHall('badges')} style={{
+            display: 'flex', gap: '14px', alignItems: 'center', background: 'rgba(0,0,0,0.25)',
             padding: '4px 12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)',
             cursor: 'pointer', flex: 1, marginLeft: '4px'
           }}>
@@ -2933,7 +2933,7 @@ function GameScreen({
 
       const utterance = new SpeechSynthesisUtterance(part);
       utterance.lang = ttsLang;
-      utterance.rate = Math.max(0.6, Math.min(1.25, Number(ttsSettings.rate) || 1));
+      utterance.rate = Math.max(0.3, Math.min(1.25, Number(ttsSettings.rate) || 1));
       utterance.pitch = Math.max(0.8, Math.min(1.2, Number(ttsSettings.pitch) || 1));
       utterance.volume = Math.max(0, Math.min(1, Number(ttsSettings.volume) || 1));
       const voice = pickBestVoice(ttsVoices, ttsLang, ttsSettings.voiceURI);
@@ -3370,10 +3370,10 @@ function GameScreen({
                   onDragOver={allowDrop}
                   onDrop={(e) => dropToSelected(e, i)}
                   style={{
-                  padding: "6px 14px", background: c.bg, border: "none",
-                  borderRadius: 20, color: "#fff", fontSize: 14, cursor: "pointer",
-                  fontFamily: "inherit", transition: "transform 0.15s",
-                }}>{w}</button>
+                    padding: "6px 14px", background: c.bg, border: "none",
+                    borderRadius: 20, color: "#fff", fontSize: 14, cursor: "pointer",
+                    fontFamily: "inherit", transition: "transform 0.15s",
+                  }}>{w}</button>
               ))}
             </div>
             {/* Available */}
@@ -3386,11 +3386,11 @@ function GameScreen({
                   draggable
                   onDragStart={() => startDrag('available', i)}
                   style={{
-                  padding: "6px 14px",
-                  background: "rgba(255,255,255,0.12)", border: "2px solid rgba(255,255,255,0.25)",
-                  borderRadius: 20, color: "#fff", fontSize: 14, cursor: "pointer",
-                  fontFamily: "inherit", transition: "transform 0.15s",
-                }}>{w}</button>
+                    padding: "6px 14px",
+                    background: "rgba(255,255,255,0.12)", border: "2px solid rgba(255,255,255,0.25)",
+                    borderRadius: 20, color: "#fff", fontSize: 14, cursor: "pointer",
+                    fontFamily: "inherit", transition: "transform 0.15s",
+                  }}>{w}</button>
               ))}
             </div>
             {selectedWords.length > 0 && (
@@ -3584,12 +3584,12 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
   const [detailedResults, setDetailedResults] = useState([]);
   const [isLoadingResults, setIsLoadingResults] = useState(false);
   const [filterSubject, setFilterSubject] = useState(initialSubject || null);
-  
+
   // Teacher view states
   const [teacherView, setTeacherView] = useState(false);
   const [teacherStudents, setTeacherStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
-  
+
   useEffect(() => {
     if (initialTab === 'results') {
       fetchDetailedResults(initialSubject || null);
@@ -3684,10 +3684,10 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
         <style>{`
           .results-filter:hover { transform: translateY(-2px); filter: brightness(1.2); }
         `}</style>
-        
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', marginBottom: 20 }}>
           <button onClick={onBack} style={{ background: "rgba(255,255,255,0.1)", border: "none", borderRadius: "50%", color: "#fff", width: 40, height: 40, fontSize: 18, cursor: "pointer", display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>✕</button>
-          
+
           <div style={{ display: 'flex', background: 'rgba(0,0,0,0.3)', borderRadius: 24, padding: 4 }}>
             <button onClick={() => setTab('badges')} style={{
               background: tab === 'badges' ? 'rgba(255,215,0,0.15)' : 'transparent',
@@ -3696,7 +3696,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
               borderRadius: 20, padding: '8px 16px', fontWeight: tab === 'badges' ? 800 : 600,
               cursor: 'pointer', transition: 'all 0.2s', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6
             }}>🏆 {user?.role === 'parent' ? t('hall.summary') : t('hall.achievements')}</button>
-            
+
             {(user?.role === 'parent' || user?.role === 'student' || user?.role === 'teacher' || user?.role === 'admin') && (
               <button onClick={() => fetchDetailedResults(null)} style={{
                 background: tab === 'results' ? 'rgba(155,89,182,0.15)' : 'transparent',
@@ -3720,79 +3720,79 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
         {tab === 'badges' && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'fadeSlide 0.4s both' }}>
 
-      <h2 style={{
-        fontWeight: 900, fontSize: 26, direction: "rtl",
-        background: "linear-gradient(90deg,#FFD700,#FF6B6B,#4ECDC4)",
-        backgroundSize: "200%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
-        animation: "shimmer 3s linear infinite", margin: "0 0 24px",
-      }}>{user?.role === 'parent' ? `🎯 ${t('hall.childPerformance')}` : `🏅 ${t('hall.hallOfFame')}`}</h2>
+            <h2 style={{
+              fontWeight: 900, fontSize: 26, direction: "rtl",
+              background: "linear-gradient(90deg,#FFD700,#FF6B6B,#4ECDC4)",
+              backgroundSize: "200%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
+              animation: "shimmer 3s linear infinite", margin: "0 0 24px",
+            }}>{user?.role === 'parent' ? `🎯 ${t('hall.childPerformance')}` : `🏅 ${t('hall.hallOfFame')}`}</h2>
 
-      {/* Stats */}
-      <div style={{
-        display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
-        width: "100%", maxWidth: 380, marginBottom: 28,
-      }}>
-        {[
-          { icon: "⭐", val: gameStats.totalStars, label: t('hall.totalStars') },
-          { icon: "🏅", val: earnedBadges.length, label: t('hall.totalBadges') },
-          { icon: "📚", val: gameStats.completedLessons, label: t('hall.completedLessons') },
-          { icon: "⚡", val: gameStats.fastAnswers, label: t('hall.fastAnswers') },
-        ].map(s => (
-          <div key={s.label} style={{
-            background: "rgba(255,255,255,0.07)", borderRadius: 16,
-            padding: "14px 8px", textAlign: "center",
-          }}>
-            <div style={{ fontSize: 24, marginBottom: 4 }}>{s.icon}</div>
-            <div style={{ color: "#FFD700", fontWeight: 900, fontSize: 22 }}>{s.val}</div>
-            <div style={{ color: "#aaa", fontSize: 11, direction: "rtl", marginTop: 2 }}>{s.label}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Badges grid */}
-      <div style={{ width: "100%", maxWidth: 400 }}>
-        <div style={{ color: "#aaa", direction: "rtl", fontSize: 13, marginBottom: 14 }}>
-          {t('hall.badges')} ({earnedBadges.length}/{BADGES.length}):
-        </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
-          {BADGES.map((b, i) => {
-            const earned = earnedBadges.includes(b.id);
-            return (
-              <div key={b.id} style={{
-                background: earned ? "rgba(255,215,0,0.12)" : "rgba(255,255,255,0.04)",
-                border: `2px solid ${earned ? "#FFD70066" : "rgba(255,255,255,0.1)"}`,
-                borderRadius: 18, padding: "16px 8px", textAlign: "center",
-                filter: earned ? "none" : "grayscale(80%) brightness(0.5)",
-                transition: "all 0.3s",
-                animation: earned ? `pop 0.4s ${i * 0.1}s both` : "none",
-              }}>
-                <div style={{ fontSize: 32 }}>{b.emoji}</div>
-                <div style={{ color: earned ? "#FFD700" : "#555", fontSize: 11, direction: "rtl", marginTop: 6 }}>
-                  {b.label}
+            {/* Stats */}
+            <div style={{
+              display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
+              width: "100%", maxWidth: 380, marginBottom: 28,
+            }}>
+              {[
+                { icon: "⭐", val: gameStats.totalStars, label: t('hall.totalStars') },
+                { icon: "🏅", val: earnedBadges.length, label: t('hall.totalBadges') },
+                { icon: "📚", val: gameStats.completedLessons, label: t('hall.completedLessons') },
+                { icon: "⚡", val: gameStats.fastAnswers, label: t('hall.fastAnswers') },
+              ].map(s => (
+                <div key={s.label} style={{
+                  background: "rgba(255,255,255,0.07)", borderRadius: 16,
+                  padding: "14px 8px", textAlign: "center",
+                }}>
+                  <div style={{ fontSize: 24, marginBottom: 4 }}>{s.icon}</div>
+                  <div style={{ color: "#FFD700", fontWeight: 900, fontSize: 22 }}>{s.val}</div>
+                  <div style={{ color: "#aaa", fontSize: 11, direction: "rtl", marginTop: 2 }}>{s.label}</div>
                 </div>
+              ))}
+            </div>
+
+            {/* Badges grid */}
+            <div style={{ width: "100%", maxWidth: 400 }}>
+              <div style={{ color: "#aaa", direction: "rtl", fontSize: 13, marginBottom: 14 }}>
+                {t('hall.badges')} ({earnedBadges.length}/{BADGES.length}):
               </div>
-            );
-          })}
-        </div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+                {BADGES.map((b, i) => {
+                  const earned = earnedBadges.includes(b.id);
+                  return (
+                    <div key={b.id} style={{
+                      background: earned ? "rgba(255,215,0,0.12)" : "rgba(255,255,255,0.04)",
+                      border: `2px solid ${earned ? "#FFD70066" : "rgba(255,255,255,0.1)"}`,
+                      borderRadius: 18, padding: "16px 8px", textAlign: "center",
+                      filter: earned ? "none" : "grayscale(80%) brightness(0.5)",
+                      transition: "all 0.3s",
+                      animation: earned ? `pop 0.4s ${i * 0.1}s both` : "none",
+                    }}>
+                      <div style={{ fontSize: 32 }}>{b.emoji}</div>
+                      <div style={{ color: earned ? "#FFD700" : "#555", fontSize: 11, direction: "rtl", marginTop: 6 }}>
+                        {b.label}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </div>
         )}
 
         {tab === 'results' && (
           <div style={{ width: '100%', display: 'flex', flexDirection: 'column', animation: 'fadeSlide 0.4s both', direction: 'rtl' }}>
-             <h2 style={{
+            <h2 style={{
               fontWeight: 900, fontSize: 22, color: '#fff', marginBottom: 20, textAlign: 'center'
             }}>
               {user?.role === 'teacher' || user?.role === 'admin'
-                ? (selectedStudent 
-                    ? `📝 ${t('hall.reportFor')} ${selectedStudent.studentName || selectedStudent.studentEmail}` 
-                    : `📝 ${t('hall.studentsPerformanceReport')}`)
-                : (filterSubject 
-                    ? `📝 ${t('hall.reportFor')} ${SUBJECTS.find(s => s.id === filterSubject)?.label}` 
-                    : `📝 ${t('hall.overallPerformanceReport')}`)
+                ? (selectedStudent
+                  ? `📝 ${t('hall.reportFor')} ${selectedStudent.studentName || selectedStudent.studentEmail}`
+                  : `📝 ${t('hall.studentsPerformanceReport')}`)
+                : (filterSubject
+                  ? `📝 ${t('hall.reportFor')} ${SUBJECTS.find(s => s.id === filterSubject)?.label}`
+                  : `📝 ${t('hall.overallPerformanceReport')}`)
               }
             </h2>
-            
+
             {/* Teacher: Student Selector */}
             {(user?.role === 'teacher' || user?.role === 'admin') && teacherStudents.length > 0 && (
               <div style={{ marginBottom: 16 }}>
@@ -3805,11 +3805,11 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                       style={{
                         padding: '10px 14px',
                         borderRadius: 12,
-                        border: selectedStudent?.studentId === student.studentId 
-                          ? '2px solid #9B59B6' 
+                        border: selectedStudent?.studentId === student.studentId
+                          ? '2px solid #9B59B6'
                           : '1px solid rgba(255,255,255,0.1)',
-                        background: selectedStudent?.studentId === student.studentId 
-                          ? 'rgba(155,89,182,0.2)' 
+                        background: selectedStudent?.studentId === student.studentId
+                          ? 'rgba(155,89,182,0.2)'
                           : 'rgba(255,255,255,0.04)',
                         color: '#fff',
                         cursor: 'pointer',
@@ -3826,11 +3826,11 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                 </div>
               </div>
             )}
-            
+
             {isLoadingResults ? (
-               <div style={{ textAlign: 'center', padding: '40px' }}>
+              <div style={{ textAlign: 'center', padding: '40px' }}>
                 <div style={{ width: 30, height: 30, border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#9B59B6', borderRadius: '50%', display: 'inline-block', animation: 'spin 1s linear infinite' }}></div>
-               </div>
+              </div>
             ) : detailedResults.length === 0 ? (
               <p style={{ color: '#aaa', textAlign: 'center' }}>
                 {(user?.role === 'teacher' || user?.role === 'admin') && !selectedStudent
@@ -3874,7 +3874,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                         </div>
                       </div>
                     );
-                })}
+                  })}
               </div>
             )}
           </div>
@@ -3891,16 +3891,16 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
             }}>
               {user?.email ? user.email.charAt(0).toUpperCase() : '👤'}
             </div>
-            
+
             <h3 style={{ color: '#fff', fontSize: 24, margin: '0 0 8px 0', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>{t('profile.astronautProfile')}</h3>
-            
+
             <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 20, width: '100%', maxWidth: 360, marginBottom: 24 }}>
               <div style={{ marginBottom: 20 }}>
                 <label style={{ display: 'block', color: '#aaa', fontSize: 13, marginBottom: 8, marginRight: 5 }}>{t('profile.displayName')}:</label>
                 <div style={{ display: 'flex', gap: 10 }}>
-                  <input 
-                    type="text" 
-                    value={editName} 
+                  <input
+                    type="text"
+                    value={editName}
                     onChange={(e) => setEditName(e.target.value)}
                     placeholder={t('profile.enterName')}
                     style={{
@@ -3911,7 +3911,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                       textAlign: contentTextAlign(contentDirection(editName, i18n.language === 'fa'))
                     }}
                   />
-                  <button 
+                  <button
                     onClick={handleUpdateName}
                     disabled={isUpdating}
                     style={{
@@ -3928,7 +3928,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                 <span style={{ color: '#aaa', fontSize: 14 }}>{t('profile.yourEmail')}:</span>
                 <span style={{ color: '#fff', fontSize: 14, fontWeight: 'bold', direction: 'ltr' }}>{user?.email || t('profile.unknown')}</span>
               </div>
-              
+
               {user?.role === 'parent' && user?.linkedStudent && (
                 <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 16 }}>
                   <p style={{ color: '#4ECDC4', fontSize: 13, fontWeight: 'bold', marginBottom: 12 }}>🔗 {t('profile.linkedAccount')} ({t('profile.child')}):</p>
@@ -3955,7 +3955,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                     <span style={{ color: '#aaa', fontSize: 14 }}>{t('profile.grade')}:</span>
                     <span style={{ color: '#4ECDC4', fontSize: 14, fontWeight: 'bold', background: 'rgba(78,205,196,0.1)', padding: '4px 10px', borderRadius: 8 }}>{t('profile.class')} {user.grade} ({t('profile.elementary')})</span>
                   </div>
-                  
+
                   {user?.linkedParent ? (
                     <div style={{ background: 'rgba(39, 174, 96, 0.1)', borderRadius: 12, padding: 12, border: '1px solid rgba(39, 174, 96, 0.3)' }}>
                       <p style={{ color: '#27AE60', fontSize: 13, fontWeight: 'bold', marginBottom: 12 }}>🔗 {t('profile.linkedParentAccount')}:</p>
@@ -3982,7 +3982,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16, marginBottom: 8 }}>
-                <LanguageSwitcher style={{ 
+                <LanguageSwitcher style={{
                   padding: '8px 16px',
                   fontSize: '14px',
                   borderRadius: '20px',
@@ -4125,7 +4125,7 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
           transform: scale(0.98);
         }
       `}</style>
-      
+
       <div onClick={(e) => e.stopPropagation()} style={{
         background: 'linear-gradient(160deg, #1a1a2e 0%, #16213e 100%)',
         width: '100%', maxWidth: 500, maxHeight: '85vh',
@@ -4134,7 +4134,7 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
         animation: "modalShow 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards",
         display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative'
       }}>
-        
+
         {/* Header Section */}
         <div style={{
           padding: '24px 24px 16px',
@@ -4148,7 +4148,7 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
             fontSize: 20, cursor: "pointer", display: 'flex', alignItems: 'center', justifyContent: 'center',
             transition: 'background 0.2s'
           }}>✕</button>
-          
+
           <div style={{ textAlign: 'right' }}>
             <h2 style={{ color: "#fff", margin: 0, fontSize: 24, fontWeight: 900 }}>{subject?.label} {subject?.emoji}</h2>
             <p style={{ color: "rgba(255,255,255,0.5)", margin: '4px 0 0', fontSize: 13 }}>{t('chapters.educationChaptersList')}</p>
@@ -4157,7 +4157,7 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
 
         {/* Content Section */}
         <div style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-          
+
           {pdfUrl && (
             <a href={pdfUrl} target="_blank" rel="noreferrer" style={{
               background: 'linear-gradient(135deg, #FFD700, #FFA500)',
@@ -4222,9 +4222,9 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
                       }} className="action-btn">
                         {prog.read ? t('chapters.reread') : t('chapters.studyLesson')}
-                        {prog.read && <span style={{fontSize: 12}}>✅</span>}
+                        {prog.read && <span style={{ fontSize: 12 }}>✅</span>}
                       </button>
-                      
+
                       <button onClick={() => onPlay(ch._id)} style={{
                         background: prog.completed ? 'rgba(255, 107, 107, 0.15)' : 'linear-gradient(135deg, #FF6B6B, #EE5253)',
                         border: prog.completed ? '1px solid #FF6B6B44' : 'none',
@@ -4234,7 +4234,7 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
                         boxShadow: prog.completed ? 'none' : '0 4px 12px rgba(255, 107, 107, 0.2)'
                       }} className="action-btn">
                         {prog.completed ? t('chapters.doAgain') : t('chapters.startMission')}
-                        {prog.completed && <span style={{fontSize: 12}}>🏆</span>}
+                        {prog.completed && <span style={{ fontSize: 12 }}>🏆</span>}
                       </button>
                     </div>
                   </div>
@@ -4336,8 +4336,10 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
     ttsQueueRef.current = [];
     ttsChunksRef.current = [];
     ttsIdxRef.current = 0;
+    ttsSpeakToDisplayIdxRef.current = [];
     window.speechSynthesis.cancel();
     setTtsState({ speaking: false, paused: false });
+    setActiveLineIdx(-1);
   }, []);
 
   const ttsPause = useCallback(() => {
@@ -4351,6 +4353,13 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
     try { window.speechSynthesis.resume(); } catch { /* ignore */ }
     setTtsState(s => ({ ...s, paused: false, speaking: true }));
   }, []);
+
+  // ── Settings ref — always up to date, readable from any closure ─────────
+  const ttsSettingsRef = useRef(ttsSettings);
+  useEffect(() => { ttsSettingsRef.current = ttsSettings; }, [ttsSettings]);
+
+  // ── speakNextRef — lets setTtsSettingsAndApplyLive call speakNext directly
+  const speakNextRef = useRef(null);
 
   const ttsSpeak = useCallback((text, opts = {}) => {
     if (!('speechSynthesis' in window)) return;
@@ -4387,50 +4396,92 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
     const speakNext = () => {
       if (!ttsQueueRef.current.length) {
         setTtsState({ speaking: false, paused: false });
+        setActiveLineIdx(-1);
         return;
       }
       const part = ttsQueueRef.current.shift();
       if (part == null) {
         setTtsState({ speaking: false, paused: false });
+        setActiveLineIdx(-1);
         return;
       }
 
+      // ── Highlight the display line that corresponds to this chunk ──────
+      try {
+        const displayIdx = ttsSpeakToDisplayIdxRef.current?.[ttsIdxRef.current];
+        if (Number.isFinite(displayIdx)) {
+          setActiveLineIdx(displayIdx);
+        }
+      } catch {
+        // ignore
+      }
+
+      // ── Read settings from ref — always latest even after speed change ──
+      const currentSettings = ttsSettingsRef.current;
       const utterance = new SpeechSynthesisUtterance(part);
       utterance.lang = ttsLang;
-      utterance.rate = Math.max(0.6, Math.min(1.25, Number(ttsSettings.rate) || 1));
-      utterance.pitch = Math.max(0.8, Math.min(1.2, Number(ttsSettings.pitch) || 1));
-      utterance.volume = Math.max(0, Math.min(1, Number(ttsSettings.volume) || 1));
-      const voice = pickBestVoice(ttsVoices, ttsLang, ttsSettings.voiceURI);
+      utterance.rate   = Math.max(0.1, Math.min(2.0, Number(currentSettings.rate)   || 1));
+      utterance.pitch  = Math.max(0.8, Math.min(1.2, Number(currentSettings.pitch)  || 1));
+      utterance.volume = Math.max(0,   Math.min(1,   Number(currentSettings.volume) || 1));
+      const voice = pickBestVoice(ttsVoices, ttsLang, currentSettings.voiceURI);
       if (voice) utterance.voice = voice;
       utterance.onend = () => {
         ttsIdxRef.current += 1;
         speakNext();
       };
-      utterance.onerror = () => {
+      utterance.onerror = (ev) => {
+        // 'interrupted' means we cancelled intentionally (speed change) — do NOT stop
+        if (ev?.error === 'interrupted') return;
         ttsQueueRef.current = [];
         setTtsState({ speaking: false, paused: false });
+        setActiveLineIdx(-1);
       };
       window.speechSynthesis.speak(utterance);
     };
 
+    // Expose speakNext so speed-change handler can call it directly
+    speakNextRef.current = speakNext;
     speakNext();
-  }, [ttsLang, ttsSettings, ttsVoices, ttsStop]);
+  }, [ttsLang, ttsVoices]);
 
-  const setTtsSettingsAndApplyLive = useCallback((updater) => {
-    setTtsSettings((prev) => {
-      const next = typeof updater === 'function' ? updater(prev) : updater;
+  // ── Live rate change: cancel current utterance, resume from same index ──
+  const ttsChangeRate = useCallback((newRate) => {
+    setTtsSettings(prev => {
+      const next = { ...prev, rate: newRate };
       try { saveTtsSettings(next); } catch { /* ignore */ }
-
-      const shouldRestart = ttsState.speaking && !ttsState.paused && ttsLastTextRef.current;
-      if (shouldRestart) {
-        const currentIndex = Math.max(0, Number(ttsIdxRef.current) || 0);
-        setTimeout(() => {
-          ttsSpeak(ttsLastTextRef.current, { keepIndexIfSameText: true, startIndex: currentIndex });
-        }, 0);
-      }
       return next;
     });
-  }, [ttsSpeak, ttsState.paused, ttsState.speaking]);
+    // ttsSettingsRef is updated by useEffect — but we need it NOW for the
+    // next utterance, so update ref immediately as well:
+    ttsSettingsRef.current = { ...ttsSettingsRef.current, rate: newRate };
+
+    if (!('speechSynthesis' in window)) return;
+    if (!ttsLastTextRef.current) return;           // nothing was being read
+    if (!window.speechSynthesis.speaking) return;  // not currently speaking
+
+    // Cancel current utterance → onerror 'interrupted' (silenced above)
+    // then immediately rebuild queue from current index and continue
+    const resumeIdx = Math.max(0, Number(ttsIdxRef.current) || 0);
+    ttsQueueRef.current = (ttsChunksRef.current || []).slice(resumeIdx);
+    window.speechSynthesis.cancel();
+
+    // Give browser one tick to finish cancel before speaking again
+    requestAnimationFrame(() => {
+      setTtsState({ speaking: true, paused: false });
+      if (speakNextRef.current) speakNextRef.current();
+    });
+  }, []);
+
+  const setTtsSettingsAndApplyLive = useCallback((updater) => {
+    const next = typeof updater === 'function' ? updater(ttsSettingsRef.current) : updater;
+    if (next.rate !== ttsSettingsRef.current.rate) {
+      // Rate change — use smooth real-time path
+      ttsChangeRate(next.rate);
+    } else {
+      // Non-rate change (pitch, volume, voice) — simple state update
+      setTtsSettings(next);
+    }
+  }, [ttsChangeRate]);
 
   const ttsTogglePlayPause = useCallback((text) => {
     if (!('speechSynthesis' in window)) return;
@@ -4703,10 +4754,9 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
             background: 'rgba(0,0,0,0.16)'
           }}>
             {[
-              { rate: 0.7, level: 1, title: t('study.speedVerySlow') },
-              { rate: 0.85, level: 2, title: t('study.speedSlow') },
-              { rate: 1.0, level: 3, title: t('study.speedNormal') },
-              { rate: 1.15, level: 4, title: t('study.speedFast') },
+              { rate: 0.2, level: 1, title: t('study.speedVerySlow') },
+              { rate: 1.0, level: 2, title: t('study.speedNormal') },
+              { rate: 1.5, level: 3, title: t('study.speedFast') },
             ].map((it) => (
               <button key={it.rate} onClick={() => setTtsSettingsAndApplyLive(s => ({ ...s, rate: it.rate }))} style={{
                 width: 42,
@@ -4714,23 +4764,23 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
                 padding: 0,
                 borderRadius: 14,
                 border: '1px solid rgba(255,255,255,0.12)',
-                background: Math.abs(Number(ttsSettings.rate) - it.rate) < 0.04 ? 'rgba(255,215,0,0.20)' : 'rgba(255,255,255,0.05)',
+                background: Math.abs(Number(ttsSettings.rate) - it.rate) < 0.06 ? 'rgba(255,215,0,0.20)' : 'rgba(255,255,255,0.05)',
                 color: '#fff',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
               }} title={it.title}>
-                <svg width="22" height="18" viewBox="0 0 22 18" fill="none">
-                  {[1, 2, 3, 4].map((lvl) => (
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                  {[1, 2, 3].map((lvl) => (
                     <rect
                       key={lvl}
-                      x={(lvl - 1) * 5}
-                      y={18 - (lvl <= it.level ? (4 + lvl * 3) : 4)}
-                      width="3"
-                      height={lvl <= it.level ? (4 + lvl * 3) : 4}
-                      rx="1"
-                      fill={lvl <= it.level ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.35)'}
+                      x={(lvl - 1) * 6}
+                      y={18 - (lvl <= it.level ? (4 + lvl * 4) : 4)}
+                      width="4"
+                      height={lvl <= it.level ? (4 + lvl * 4) : 4}
+                      rx="1.5"
+                      fill={lvl <= it.level ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.28)'}
                     />
                   ))}
                 </svg>
@@ -4976,172 +5026,172 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
 
         {(authView === 'main') && (
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-          <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
-            <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.emailLabel')}</label>
-            <input
-              type="email"
-              placeholder={t('auth.emailPlaceholder')}
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="input-focus"
-              style={{
-                width: "100%",
-                padding: "16px",
-                borderRadius: "16px",
-                border: "1.5px solid rgba(255, 255, 255, 0.1)",
-                background: "rgba(0, 0, 0, 0.2)",
-                color: "#fff",
-                fontSize: "15px",
-                transition: "all 0.3s ease",
-                boxSizing: "border-box",
-                outline: 'none'
-              }}
-              required
-            />
-          </div>
-
-          <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
-            <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.passwordLabel')}</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input-focus"
-              style={{
-                width: "100%", padding: "16px", borderRadius: "16px",
-                border: "1.5px solid rgba(255, 255, 255, 0.1)",
-                background: "rgba(0, 0, 0, 0.2)", color: "#fff",
-                fontSize: "15px", transition: "all 0.3s ease",
-                boxSizing: "border-box", outline: 'none'
-              }}
-              required
-            />
-          </div>
-
-          {mode === 'register' && (
-            <>
-              <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
-                <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.roleLabel')}</label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                  {[
-                    { id: 'student', label: t('auth.roles.student') },
-                    { id: 'parent', label: t('auth.roles.parent') },
-                    { id: 'teacher', label: t('auth.roles.teacher') }
-                  ].map(r => (
-                    <button
-                      key={r.id}
-                      type="button"
-                      onClick={() => setRole(r.id)}
-                      style={{
-                        padding: '10px 4px', borderRadius: '12px', fontSize: '13px', fontWeight: 'bold',
-                        cursor: 'pointer', transition: 'all 0.2s',
-                        background: role === r.id ? 'rgba(78, 205, 196, 0.2)' : 'rgba(255,255,255,0.05)',
-                        border: `1.5px solid ${role === r.id ? '#4ECDC4' : 'transparent'}`,
-                        color: role === r.id ? '#4ECDC4' : '#888'
-                      }}
-                    >{r.label}</button>
-                  ))}
-                </div>
-              </div>
-
-              {role === 'student' && (
-                <div style={{ textAlign: 'right', animation: 'fadeSlideUp 0.3s both' }}>
-                  <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px', textAlign: isRTL ? 'right' : 'left' }}>{t('auth.gradeLabel')}</label>
-                  <select
-                    value={grade}
-                    onChange={(e) => setGrade(Number(e.target.value))}
-                    style={{
-                      width: "100%", padding: "16px", borderRadius: "16px",
-                      border: "1.5px solid rgba(255, 255, 255, 0.1)",
-                      background: "rgba(0, 0, 0, 0.2)", color: "#fff",
-                      fontSize: "15px", outline: 'none', cursor: 'pointer', appearance: 'none'
-                    }}
-                  >
-                    {[1, 2, 3, 4, 5, 6].map(g => (
-                      <option key={g} value={g} style={{ background: '#1a1a2e' }}>{t('auth.gradeOption', { grade: g })}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              {role === 'parent' && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', animation: 'fadeSlideUp 0.3s both' }}>
-                  <div style={{ padding: '12px', background: 'rgba(78, 205, 196, 0.05)', borderRadius: '14px', border: '1px dashed rgba(78, 205, 196, 0.3)', marginBottom: '4px' }}>
-                    <p style={{ color: '#4ECDC4', fontSize: '12px', margin: 0, textAlign: 'center' }}>{t('auth.parentHint')}</p>
-                  </div>
-                  
-                  <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
-                    <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.studentEmailLabel')}</label>
-                    <input
-                      type="email"
-                      placeholder={t('auth.studentEmailPlaceholder')}
-                      value={studentEmail}
-                      onChange={(e) => setStudentEmail(e.target.value)}
-                      className="input-focus"
-                      style={{
-                        width: "100%", padding: "16px", borderRadius: "16px",
-                        border: "1.5px solid rgba(255, 255, 255, 0.1)",
-                        background: "rgba(0, 0, 0, 0.2)", color: "#fff",
-                        fontSize: "15px", transition: "all 0.3s ease",
-                        boxSizing: "border-box", outline: 'none'
-                      }}
-                      required
-                    />
-                  </div>
-
-                  <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
-                    <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.studentPasswordLabel')}</label>
-                    <input
-                      type="password"
-                      placeholder="••••••••"
-                      value={studentPassword}
-                      onChange={(e) => setStudentPassword(e.target.value)}
-                      className="input-focus"
-                      style={{
-                        width: "100%", padding: "16px", borderRadius: "16px",
-                        border: "1.5px solid rgba(255, 255, 255, 0.1)",
-                        background: "rgba(0, 0, 0, 0.2)", color: "#fff",
-                        fontSize: "15px", transition: "all 0.3s ease",
-                        boxSizing: "border-box", outline: 'none'
-                      }}
-                      required
-                    />
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-
-          <button type="submit" disabled={isLoading} style={{
-            background: "linear-gradient(90deg, #FF6B6B 0%, #4ECDC4 100%)",
-            border: "none",
-            padding: "18px",
-            borderRadius: "16px",
-            color: "#fff",
-            fontWeight: "900",
-            cursor: "pointer",
-            fontSize: "18px",
-            marginTop: "10px",
-            boxShadow: "0 10px 20px rgba(0,0,0,0.2)",
-            transition: "all 0.3s ease",
-          }}>
-            {isLoading
-              ? (mode === 'login' ? t('auth.loggingIn') : t('auth.registering'))
-              : (mode === 'login' ? t('auth.loginCta') : t('auth.registerCta'))}
-          </button>
-          {mode === 'login' && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
-              <span
-                onClick={() => { setAuthView('forgot'); setError(''); setSuccess(''); }}
-                style={{ color: '#FFD700', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
-              >{t('auth.forgotPasswordLink')}</span>
-              <span
-                onClick={() => { setMode('register'); setAuthView('main'); setError(''); setSuccess(''); }}
-                style={{ color: '#4ECDC4', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
-              >{t('auth.registerLink')}</span>
+            <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+              <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.emailLabel')}</label>
+              <input
+                type="email"
+                placeholder={t('auth.emailPlaceholder')}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="input-focus"
+                style={{
+                  width: "100%",
+                  padding: "16px",
+                  borderRadius: "16px",
+                  border: "1.5px solid rgba(255, 255, 255, 0.1)",
+                  background: "rgba(0, 0, 0, 0.2)",
+                  color: "#fff",
+                  fontSize: "15px",
+                  transition: "all 0.3s ease",
+                  boxSizing: "border-box",
+                  outline: 'none'
+                }}
+                required
+              />
             </div>
-          )}
+
+            <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+              <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.passwordLabel')}</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input-focus"
+                style={{
+                  width: "100%", padding: "16px", borderRadius: "16px",
+                  border: "1.5px solid rgba(255, 255, 255, 0.1)",
+                  background: "rgba(0, 0, 0, 0.2)", color: "#fff",
+                  fontSize: "15px", transition: "all 0.3s ease",
+                  boxSizing: "border-box", outline: 'none'
+                }}
+                required
+              />
+            </div>
+
+            {mode === 'register' && (
+              <>
+                <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+                  <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.roleLabel')}</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
+                    {[
+                      { id: 'student', label: t('auth.roles.student') },
+                      { id: 'parent', label: t('auth.roles.parent') },
+                      { id: 'teacher', label: t('auth.roles.teacher') }
+                    ].map(r => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        onClick={() => setRole(r.id)}
+                        style={{
+                          padding: '10px 4px', borderRadius: '12px', fontSize: '13px', fontWeight: 'bold',
+                          cursor: 'pointer', transition: 'all 0.2s',
+                          background: role === r.id ? 'rgba(78, 205, 196, 0.2)' : 'rgba(255,255,255,0.05)',
+                          border: `1.5px solid ${role === r.id ? '#4ECDC4' : 'transparent'}`,
+                          color: role === r.id ? '#4ECDC4' : '#888'
+                        }}
+                      >{r.label}</button>
+                    ))}
+                  </div>
+                </div>
+
+                {role === 'student' && (
+                  <div style={{ textAlign: 'right', animation: 'fadeSlideUp 0.3s both' }}>
+                    <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px', textAlign: isRTL ? 'right' : 'left' }}>{t('auth.gradeLabel')}</label>
+                    <select
+                      value={grade}
+                      onChange={(e) => setGrade(Number(e.target.value))}
+                      style={{
+                        width: "100%", padding: "16px", borderRadius: "16px",
+                        border: "1.5px solid rgba(255, 255, 255, 0.1)",
+                        background: "rgba(0, 0, 0, 0.2)", color: "#fff",
+                        fontSize: "15px", outline: 'none', cursor: 'pointer', appearance: 'none'
+                      }}
+                    >
+                      {[1, 2, 3, 4, 5, 6].map(g => (
+                        <option key={g} value={g} style={{ background: '#1a1a2e' }}>{t('auth.gradeOption', { grade: g })}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {role === 'parent' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', animation: 'fadeSlideUp 0.3s both' }}>
+                    <div style={{ padding: '12px', background: 'rgba(78, 205, 196, 0.05)', borderRadius: '14px', border: '1px dashed rgba(78, 205, 196, 0.3)', marginBottom: '4px' }}>
+                      <p style={{ color: '#4ECDC4', fontSize: '12px', margin: 0, textAlign: 'center' }}>{t('auth.parentHint')}</p>
+                    </div>
+
+                    <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+                      <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.studentEmailLabel')}</label>
+                      <input
+                        type="email"
+                        placeholder={t('auth.studentEmailPlaceholder')}
+                        value={studentEmail}
+                        onChange={(e) => setStudentEmail(e.target.value)}
+                        className="input-focus"
+                        style={{
+                          width: "100%", padding: "16px", borderRadius: "16px",
+                          border: "1.5px solid rgba(255, 255, 255, 0.1)",
+                          background: "rgba(0, 0, 0, 0.2)", color: "#fff",
+                          fontSize: "15px", transition: "all 0.3s ease",
+                          boxSizing: "border-box", outline: 'none'
+                        }}
+                        required
+                      />
+                    </div>
+
+                    <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+                      <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.studentPasswordLabel')}</label>
+                      <input
+                        type="password"
+                        placeholder="••••••••"
+                        value={studentPassword}
+                        onChange={(e) => setStudentPassword(e.target.value)}
+                        className="input-focus"
+                        style={{
+                          width: "100%", padding: "16px", borderRadius: "16px",
+                          border: "1.5px solid rgba(255, 255, 255, 0.1)",
+                          background: "rgba(0, 0, 0, 0.2)", color: "#fff",
+                          fontSize: "15px", transition: "all 0.3s ease",
+                          boxSizing: "border-box", outline: 'none'
+                        }}
+                        required
+                      />
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+
+            <button type="submit" disabled={isLoading} style={{
+              background: "linear-gradient(90deg, #FF6B6B 0%, #4ECDC4 100%)",
+              border: "none",
+              padding: "18px",
+              borderRadius: "16px",
+              color: "#fff",
+              fontWeight: "900",
+              cursor: "pointer",
+              fontSize: "18px",
+              marginTop: "10px",
+              boxShadow: "0 10px 20px rgba(0,0,0,0.2)",
+              transition: "all 0.3s ease",
+            }}>
+              {isLoading
+                ? (mode === 'login' ? t('auth.loggingIn') : t('auth.registering'))
+                : (mode === 'login' ? t('auth.loginCta') : t('auth.registerCta'))}
+            </button>
+            {mode === 'login' && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
+                <span
+                  onClick={() => { setAuthView('forgot'); setError(''); setSuccess(''); }}
+                  style={{ color: '#FFD700', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
+                >{t('auth.forgotPasswordLink')}</span>
+                <span
+                  onClick={() => { setMode('register'); setAuthView('main'); setError(''); setSuccess(''); }}
+                  style={{ color: '#4ECDC4', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
+                >{t('auth.registerLink')}</span>
+              </div>
+            )}
           </form>
         )}
 
