@@ -2358,8 +2358,10 @@ function GameScreen({
     ttsQueueRef.current = [];
     ttsChunksRef.current = [];
     ttsIdxRef.current = 0;
+    ttsSpeakToDisplayIdxRef.current = [];
     window.speechSynthesis.cancel();
     setTtsState({ speaking: false, paused: false });
+    setActiveLineIdx(-1);
   }, []);
 
   const ttsPause = useCallback(() => {
@@ -2398,12 +2400,21 @@ function GameScreen({
     const speakNext = () => {
       if (!ttsQueueRef.current.length) {
         setTtsState({ speaking: false, paused: false });
+        setActiveLineIdx(-1);
         return;
       }
       const part = ttsQueueRef.current.shift();
       if (part == null) {
         setTtsState({ speaking: false, paused: false });
+        setActiveLineIdx(-1);
         return;
+      }
+
+      try {
+        const displayIdx = ttsSpeakToDisplayIdxRef.current?.[ttsIdxRef.current];
+        if (Number.isFinite(displayIdx)) setActiveLineIdx(displayIdx);
+      } catch {
+        // ignore
       }
 
       const utterance = new SpeechSynthesisUtterance(part);
@@ -2426,6 +2437,7 @@ function GameScreen({
       utterance.onerror = () => {
         ttsQueueRef.current = [];
         setTtsState({ speaking: false, paused: false });
+        setActiveLineIdx(-1);
       };
       window.speechSynthesis.speak(utterance);
     };
@@ -3715,6 +3727,9 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
   const ttsLastTextRef = useRef('');
   const ttsPendingRestartRef = useRef(false);
   const [ttsState, setTtsState] = useState({ speaking: false, paused: false });
+  const [activeLineIdx, setActiveLineIdx] = useState(-1);
+  const ttsSpeakToDisplayIdxRef = useRef([]);
+  const lineRefs = useRef([]);
   const ttsLang = getLangForSubject(subject?.id);
   const ttsIsRTL = isRtlLang(ttsLang);
 
@@ -3793,7 +3808,17 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
     const chunksMissing = !Array.isArray(ttsChunksRef.current) || ttsChunksRef.current.length === 0;
     if (!keepIndexIfSameText || ttsLastTextRef.current !== clean || chunksMissing) {
       ttsLastTextRef.current = clean;
-      ttsChunksRef.current = splitSpeakChunks(clean);
+      const rawLines = String(clean || '').split(/\r?\n/);
+      const speakIdxToDisplayIdx = [];
+      const speakChunks = [];
+      rawLines.forEach((ln, displayIdx) => {
+        const trimmed = String(ln || '').trim();
+        if (!trimmed) return;
+        speakIdxToDisplayIdx.push(displayIdx);
+        speakChunks.push(trimmed);
+      });
+      ttsSpeakToDisplayIdxRef.current = speakIdxToDisplayIdx;
+      ttsChunksRef.current = speakChunks.length ? speakChunks : splitSpeakChunks(clean);
       ttsIdxRef.current = startIndex;
     }
 
@@ -3873,6 +3898,21 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
   }, [ttsStop]);
 
   const content = lesson?.content || "محتوایی یافت نشد.";
+  const displayLines = useMemo(() => {
+    const raw = String(content || '');
+    return raw.split(/\r?\n/);
+  }, [content]);
+
+  useEffect(() => {
+    if (activeLineIdx < 0) return;
+    const el = lineRefs.current?.[activeLineIdx];
+    if (!el) return;
+    try {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } catch {
+      // ignore
+    }
+  }, [activeLineIdx]);
 
   return (
     <div style={{
@@ -3903,21 +3943,40 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
           textShadow: '0 1px 2px rgba(0,0,0,0.5)',
           direction: subject?.dir || 'rtl'
         }}>
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm, remarkBreaks]}
-            components={{
-              h2: (props) => <div {...props} style={{ fontSize: 22, fontWeight: 900, margin: '14px 0 10px', color: '#fff' }} />,
-              h3: (props) => <div {...props} style={{ fontSize: 19, fontWeight: 900, margin: '12px 0 8px', color: '#fff' }} />,
-              hr: (props) => <hr {...props} style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.18)', margin: '14px 0' }} />,
-              p: (props) => <div {...props} style={{ margin: '0 0 10px' }} />,
-              strong: (props) => <strong {...props} style={{ color: '#fff' }} />,
-              ol: (props) => <ol {...props} style={{ margin: '0 0 10px', paddingInlineStart: 22 }} />,
-              ul: (props) => <ul {...props} style={{ margin: '0 0 10px', paddingInlineStart: 22 }} />,
-              li: (props) => <li {...props} style={{ margin: '0 0 6px' }} />,
-            }}
-          >
-            {content}
-          </ReactMarkdown>
+          {displayLines.map((line, i) => {
+            const isActive = i === activeLineIdx;
+            const trimmed = String(line || '').trim();
+            const isEmpty = !trimmed;
+            return (
+              <div key={i} ref={(el) => { lineRefs.current[i] = el; }} style={{
+                padding: isEmpty ? '2px 0' : '6px 10px',
+                margin: isEmpty ? 0 : '2px 0',
+                borderRadius: 12,
+                background: isActive ? 'rgba(255,215,0,0.18)' : 'transparent',
+                border: isActive ? '1px solid rgba(255,215,0,0.34)' : '1px solid rgba(255,255,255,0.00)',
+                boxShadow: isActive ? '0 0 0 3px rgba(255,215,0,0.10), 0 10px 30px rgba(0,0,0,0.25)' : 'none',
+                transition: 'background 120ms ease, border 120ms ease, box-shadow 160ms ease',
+              }}>
+                {!isEmpty && (
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm, remarkBreaks]}
+                    components={{
+                      h2: (props) => <div {...props} style={{ fontSize: 22, fontWeight: 900, margin: '14px 0 10px', color: '#fff' }} />,
+                      h3: (props) => <div {...props} style={{ fontSize: 19, fontWeight: 900, margin: '12px 0 8px', color: '#fff' }} />,
+                      hr: (props) => <hr {...props} style={{ border: 'none', borderTop: '1px solid rgba(255,255,255,0.18)', margin: '14px 0' }} />,
+                      p: (props) => <div {...props} style={{ margin: '0 0 10px' }} />,
+                      strong: (props) => <strong {...props} style={{ color: '#fff' }} />,
+                      ol: (props) => <ol {...props} style={{ margin: '0 0 10px', paddingInlineStart: 22 }} />,
+                      ul: (props) => <ul {...props} style={{ margin: '0 0 10px', paddingInlineStart: 22 }} />,
+                      li: (props) => <li {...props} style={{ margin: '0 0 6px' }} />,
+                    }}
+                  >
+                    {line}
+                  </ReactMarkdown>
+                )}
+              </div>
+            );
+          })}
         </div>
       </div>
 
