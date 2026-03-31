@@ -18,6 +18,24 @@ export const register = async (userData) => {
   return res.json();
 };
 
+export const forgotPassword = async (email) => {
+  const res = await fetch(`${API_URL}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  return res.json();
+};
+
+export const resetPassword = async ({ email, token, newPassword }) => {
+  const res = await fetch(`${API_URL}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, token, newPassword }),
+  });
+  return res.json();
+};
+
 export const getProfile = async (token) => {
   const res = await fetch(`${API_URL}/user/profile`, {
     headers: { 'Authorization': `Bearer ${token}` },

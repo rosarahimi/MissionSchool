@@ -8,6 +8,8 @@ const userSchema = new mongoose.Schema({
   role: { type: String, enum: ['student', 'parent', 'teacher', 'admin'], default: 'student' },
   grade: { type: Number, default: 3 }, // Added grade for students
   linkedStudent: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }, // For parents to link to student
+  resetPasswordTokenHash: { type: String, default: null },
+  resetPasswordExpiresAt: { type: Date, default: null },
   scores: [{
     subject: String,
     score: Number,

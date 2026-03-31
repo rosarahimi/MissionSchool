@@ -3360,6 +3360,73 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
   const [success, setSuccess] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  const [authView, setAuthView] = useState('main'); // 'main' | 'forgot' | 'reset'
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+
+  useEffect(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const resetEmail = params.get('resetEmail');
+      const resetTokenParam = params.get('resetToken');
+
+      if (resetEmail && resetTokenParam) {
+        setMode('login');
+        setEmail(String(resetEmail));
+        setResetToken(String(resetTokenParam));
+        setAuthView('reset');
+
+        const nextUrl = window.location.pathname + window.location.hash;
+        window.history.replaceState({}, document.title, nextUrl);
+      }
+    } catch {
+      // ignore
+    }
+  }, [setMode]);
+
+  const handleForgotPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setIsLoading(true);
+    try {
+      const res = await api.forgotPassword(email);
+      if (res?.message) setSuccess(res.message);
+      if (res?.token) {
+        setResetToken(res.token);
+      }
+      setAuthView('reset');
+    } catch (err) {
+      setError(err?.message || 'خطایی رخ داد. دوباره تلاش کنید.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    setIsLoading(true);
+    try {
+      const res = await api.resetPassword({ email, token: resetToken, newPassword });
+      if (!res?.ok) {
+        setError(res?.message || 'خطایی رخ داد. دوباره تلاش کنید.');
+        return;
+      }
+      setSuccess(res?.message || 'رمز عبور با موفقیت تغییر کرد.');
+      setPassword('');
+      setNewPassword('');
+      setResetToken('');
+      setAuthView('main');
+      setMode('login');
+    } catch (err) {
+      setError(err?.message || 'خطایی رخ داد. دوباره تلاش کنید.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -3450,7 +3517,7 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
           fontWeight: "900",
           letterSpacing: "-0.5px"
         }}>
-          {mode === 'login' ? 'خوش مامور 007' : 'سفر خود را آغاز کن'}
+          {mode === 'login' ? 'بزن بریم ماموریت' : 'سفر خود را آغاز کن'}
         </h2>
 
         <p style={{ color: "rgba(255, 255, 255, 0.6)", marginBottom: "35px", fontSize: "16px" }}>
@@ -3487,7 +3554,8 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+        {(authView === 'main') && (
+          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
           <div style={{ textAlign: 'right' }}>
             <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: '5px' }}>ایمیل</label>
             <input
@@ -3642,26 +3710,163 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
               ? (mode === 'login' ? '⏳ در حال ورود...' : '⏳ در حال ثبت‌نام...')
               : (mode === 'login' ? '🚀 بزن بریم!' : '🎉 ثبت نام و شروع')}
           </button>
-        </form>
+          {mode === 'login' && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
+              <span
+                onClick={() => { setAuthView('forgot'); setError(''); setSuccess(''); }}
+                style={{ color: '#FFD700', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
+              >فراموشی رمز عبور</span>
+              <span
+                onClick={() => { setMode('register'); setAuthView('main'); setError(''); setSuccess(''); }}
+                style={{ color: '#4ECDC4', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
+              >ثبت‌نام</span>
+            </div>
+          )}
+          </form>
+        )}
 
-        <p style={{ color: "rgba(255,255,255,0.5)", marginTop: "30px", fontSize: "15px" }}>
-          {mode === 'login' ? 'هنوز عضو نشدی؟ ' : 'قبلاً ثبت‌نام کردی؟ '}
-          <span
-            onClick={() => {
-              setMode(mode === 'login' ? 'register' : 'login');
-              setError('');
-            }}
-            style={{
-              color: "#4ECDC4",
-              cursor: "pointer",
-              fontWeight: "bold",
-              textDecoration: "underline",
-              paddingLeft: "5px"
-            }}
-          >
-            {mode === 'login' ? 'عضو شو' : 'وارد شو'}
-          </span>
-        </p>
+        {(authView === 'forgot') && (
+          <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ textAlign: 'right' }}>
+              <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 8, display: 'block', marginRight: 5 }}>ایمیل</label>
+              <input
+                type="email"
+                placeholder="example@mail.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="input-focus"
+                style={{
+                  width: '100%',
+                  padding: 16,
+                  borderRadius: 16,
+                  border: '1.5px solid rgba(255, 255, 255, 0.1)',
+                  background: 'rgba(0, 0, 0, 0.2)',
+                  color: '#fff',
+                  fontSize: 15,
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
+                required
+              />
+            </div>
+            <button type="submit" disabled={isLoading} style={{
+              background: 'linear-gradient(90deg, #FFD700 0%, #4ECDC4 100%)',
+              border: 'none',
+              padding: 16,
+              borderRadius: 16,
+              color: '#111',
+              fontWeight: 900,
+              cursor: 'pointer',
+              fontSize: 16,
+            }}>{isLoading ? '⏳ ...' : 'ارسال کد بازیابی'}</button>
+
+            <button type="button" onClick={() => { setAuthView('main'); setError(''); setSuccess(''); }} style={{
+              background: 'transparent',
+              border: '1px solid rgba(255,255,255,0.18)',
+              padding: 14,
+              borderRadius: 16,
+              color: '#fff',
+              fontWeight: 800,
+              cursor: 'pointer',
+              fontSize: 14,
+            }}>بازگشت</button>
+          </form>
+        )}
+
+        {(authView === 'reset') && (
+          <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ textAlign: 'right' }}>
+              <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 8, display: 'block', marginRight: 5 }}>توکن بازیابی</label>
+              <input
+                type="text"
+                placeholder="توکن را وارد کنید"
+                value={resetToken}
+                onChange={(e) => setResetToken(e.target.value)}
+                className="input-focus"
+                style={{
+                  width: '100%',
+                  padding: 16,
+                  borderRadius: 16,
+                  border: '1.5px solid rgba(255, 255, 255, 0.1)',
+                  background: 'rgba(0, 0, 0, 0.2)',
+                  color: '#fff',
+                  fontSize: 14,
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
+                required
+              />
+            </div>
+
+            <div style={{ textAlign: 'right' }}>
+              <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 8, display: 'block', marginRight: 5 }}>رمز جدید</label>
+              <input
+                type="password"
+                placeholder="••••••••"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                className="input-focus"
+                style={{
+                  width: '100%',
+                  padding: 16,
+                  borderRadius: 16,
+                  border: '1.5px solid rgba(255, 255, 255, 0.1)',
+                  background: 'rgba(0, 0, 0, 0.2)',
+                  color: '#fff',
+                  fontSize: 15,
+                  boxSizing: 'border-box',
+                  outline: 'none'
+                }}
+                required
+              />
+            </div>
+
+            <button type="submit" disabled={isLoading} style={{
+              background: 'linear-gradient(90deg, #FF6B6B 0%, #4ECDC4 100%)',
+              border: 'none',
+              padding: 16,
+              borderRadius: 16,
+              color: '#fff',
+              fontWeight: 900,
+              cursor: 'pointer',
+              fontSize: 16,
+            }}>{isLoading ? '⏳ ...' : 'تغییر رمز عبور'}</button>
+
+            <button type="button" onClick={() => { setAuthView('main'); setError(''); setSuccess(''); }} style={{
+              background: 'transparent',
+              border: '1px solid rgba(255,255,255,0.18)',
+              padding: 14,
+              borderRadius: 16,
+              color: '#fff',
+              fontWeight: 800,
+              cursor: 'pointer',
+              fontSize: 14,
+            }}>بازگشت</button>
+          </form>
+        )}
+
+        {authView === 'main' && (
+          <p style={{ color: "rgba(255,255,255,0.5)", marginTop: "30px", fontSize: "15px" }}>
+            {mode === 'login' ? 'هنوز عضو نشدی؟ ' : 'قبلاً ثبت‌نام کردی؟ '}
+            <span
+              onClick={() => {
+                setMode(mode === 'login' ? 'register' : 'login');
+                setAuthView('main');
+                setError('');
+                setSuccess('');
+              }}
+              style={{
+                color: "#4ECDC4",
+                cursor: "pointer",
+                fontWeight: "bold",
+                textDecoration: "underline",
+                paddingLeft: "5px"
+              }}
+            >
+              {mode === 'login' ? 'عضو شو' : 'وارد شو'}
+            </span>
+          </p>
+        )}
       </div>
     </div>
   );
