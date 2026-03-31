@@ -1,4 +1,5 @@
 import { useTranslation } from 'react-i18next';
+import { applyTheme } from '../styles/theme';
 
 export function LanguageSwitcher({ style = {} }) {
   const { i18n } = useTranslation();
@@ -6,15 +7,15 @@ export function LanguageSwitcher({ style = {} }) {
 
   const toggleLanguage = () => {
     const newLang = currentLang === 'fa' ? 'en' : 'fa';
+    const savedTheme = localStorage.getItem('ms_theme') || 'dark';
+    const savedThemeMode = localStorage.getItem('ms_theme_mode') || 'kids';
     i18n.changeLanguage(newLang);
     const dir = newLang === 'fa' ? 'rtl' : 'ltr';
     document.dir = dir;
     document.documentElement.dir = dir;
     document.documentElement.lang = newLang;
     document.body.style.direction = dir;
-    document.body.style.fontFamily = newLang === 'fa'
-      ? "'Vazirmatn','Segoe UI',sans-serif"
-      : "'Segoe UI', system-ui, -apple-system, sans-serif";
+    applyTheme({ theme: savedTheme, mode: savedThemeMode, lang: newLang });
     localStorage.setItem('i18nLanguage', newLang);
   };
 
@@ -31,7 +32,7 @@ export function LanguageSwitcher({ style = {} }) {
           borderRadius: '24px',
           background: 'linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05))',
           backdropFilter: 'blur(20px)',
-          color: '#fff',
+          color: 'var(--color-text-primary)',
           fontSize: '14px',
           fontWeight: '600',
           cursor: 'pointer',
@@ -41,7 +42,7 @@ export function LanguageSwitcher({ style = {} }) {
           transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
           fontFamily: "'Vazirmatn', 'Segoe UI', sans-serif",
           boxShadow: '0 4px 20px rgba(0,0,0,0.1), inset 0 1px 0 rgba(255,255,255,0.2)',
-          border: '1px solid rgba(255,255,255,0.2)',
+          border: '1px solid var(--color-border)',
           position: 'relative',
           overflow: 'hidden',
           minWidth: '100px',
@@ -101,8 +102,10 @@ export function LanguageSwitcher({ style = {} }) {
           width: '6px',
           height: '6px',
           borderRadius: '50%',
-          background: currentLang === 'fa' ? '#FFD700' : '#4ECDC4',
-          boxShadow: `0 0 10px ${currentLang === 'fa' ? '#FFD700' : '#4ECDC4'}`,
+          background: currentLang === 'fa' ? 'var(--color-warning)' : 'var(--color-primary)',
+          boxShadow: currentLang === 'fa'
+            ? '0 0 10px var(--color-warning)'
+            : '0 0 10px var(--color-primary)',
           animation: 'pulse 2s infinite'
         }} />
       </button>
@@ -114,7 +117,7 @@ export function LanguageSwitcher({ style = {} }) {
         left: '50%',
         transform: 'translateX(-50%)',
         background: 'rgba(0,0,0,0.9)',
-        color: '#fff',
+        color: 'var(--color-bg-elevated)',
         padding: '6px 12px',
         borderRadius: '8px',
         fontSize: '12px',

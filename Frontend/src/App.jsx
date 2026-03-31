@@ -6,17 +6,12 @@ import { useTranslation } from 'react-i18next';
 import * as api from "./api";
 import "./i18n";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
+import { tokens } from "./styles/tokens";
+import { applyTheme } from "./styles/theme";
+import { saveThemePreference } from "./styles/theme";
 
 // ── Inline styles (no Tailwind needed beyond defaults) ──────────────────────
-const COLORS = {
-  persian: { bg: "#FF6B6B", light: "#FFE5E5", dark: "#C0392B", text: "#fff" },
-  arabic: { bg: "#4ECDC4", light: "#E0F7F5", dark: "#1A8E87", text: "#fff" },
-  english: { bg: "#45B7D1", light: "#E0F4FA", dark: "#1A7A9A", text: "#fff" },
-  science: { bg: "#96CEB4", light: "#E0F5EA", dark: "#3A7A5A", text: "#fff" },
-  math: { bg: "#9B59B6", light: "#F4ECF7", dark: "#6C3483", text: "#fff" },
-  computer: { bg: "#34495E", light: "#EAECEE", dark: "#2C3E50", text: "#fff" },
-  quran: { bg: "#FFC107", light: "#FFF2CC", dark: "#FF9900", text: "#fff" },
-};
+const COLORS = tokens.subjectColors;
 
 const SUBJECTS = [
   { id: "english", labelKey: "subjects.english", emoji: "🇺🇸", dir: "ltr", color: COLORS.english },
@@ -645,7 +640,7 @@ function GlobalStyles() {
 }
 
 function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
-  const { t, i18n } = useTranslation();
+  const { t: tr, i18n } = useTranslation();
   const isRTL = i18n.language === 'fa';
   const [grade, setGrade] = useState(3);
   const [subject, setSubject] = useState('persian');
@@ -698,6 +693,10 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
   const [editChapterTitle, setEditChapterTitle] = useState('');
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
+  const [pipelineOpen, setPipelineOpen] = useState(false);
+  const forceEnglishUi = subject !== 'persian';
+  const t = (key, options) => tr(key, { ...(options || {}), lng: forceEnglishUi ? 'en' : i18n.language });
+  const tx = (faText, enText) => (forceEnglishUi ? enText : faText);
 
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
 
@@ -879,11 +878,11 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     try {
       parsed = JSON.parse(missionJson || '[]');
     } catch {
-      alert('JSON نامعتبر است');
+      alert(tx('JSON نامعتبر است', 'Invalid JSON'));
       return;
     }
     if (!Array.isArray(parsed)) {
-      alert('فرمت باید آرایه باشد');
+      alert(tx('فرمت باید آرایه باشد', 'Format must be an array'));
       return;
     }
     setBusyKey('mission-save');
@@ -917,16 +916,16 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
       }
       const parsed = Array.isArray(genRes?.missions) ? genRes.missions : [];
       if (!parsed.length) {
-        alert('ماموریت معتبر تولید نشد');
+        alert(tx('ماموریت معتبر تولید نشد', 'No valid mission generated'));
         return;
       }
 
       setMissionJson(JSON.stringify(parsed, null, 2));
       setMissionManagerLesson(prev => prev ? { ...prev, missions: parsed } : prev);
       setLessons(prev => prev.map(l => (l._id === missionManagerLesson._id ? { ...l, missions: parsed } : l)));
-      alert('ماموریت‌ها ساخته و ذخیره شدند');
+      alert(tx('ماموریت‌ها ساخته و ذخیره شدند', 'Missions were generated and saved'));
     } catch {
-      alert('خطا در ساخت/ذخیره ماموریت');
+      alert(tx('خطا در ساخت/ذخیره ماموریت', 'Error while generating/saving missions'));
     } finally {
       setBusyKey('');
     }
@@ -937,11 +936,11 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     try {
       parsed = JSON.parse(missionJson || '[]');
     } catch {
-      alert('JSON نامعتبر است');
+      alert(tx('JSON نامعتبر است', 'Invalid JSON'));
       return;
     }
     if (!Array.isArray(parsed)) {
-      alert('فرمت باید آرایه باشد');
+      alert(tx('فرمت باید آرایه باشد', 'Format must be an array'));
       return;
     }
     const next = parsed.filter((_, i) => i !== index);
@@ -993,7 +992,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
       return;
     }
     if (!pageText.trim()) {
-      alert('متن صفحه خالی است');
+      alert(tx('متن صفحه خالی است', 'Page text is empty'));
       return;
     }
 
@@ -1007,17 +1006,17 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
       const parsed = Array.isArray(genRes?.missions) ? genRes.missions : [];
       if (!parsed.length) {
-        alert('ماموریت معتبر تولید نشد');
+        alert(tx('ماموریت معتبر تولید نشد', 'No valid mission generated'));
         return;
       }
 
-      alert('ماموریت‌ها ساخته و ذخیره شدند');
+      alert(tx('ماموریت‌ها ساخته و ذخیره شدند', 'Missions were generated and saved'));
       setShowMissionExtract(false);
       setPageText('');
       setPageImageFile(null);
       if (selectedCourseId) await loadLessonsForCourse(selectedCourseId);
     } catch (e) {
-      alert('خطا در ساخت/ذخیره ماموریت');
+      alert(tx('خطا در ساخت/ذخیره ماموریت', 'Error while generating/saving missions'));
     } finally {
       setBusyKey('');
     }
@@ -1026,7 +1025,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
   async function ocrPageImageToText(file) {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      alert('فقط عکس');
+      alert(tx('فقط عکس', 'Images only'));
       return;
     }
     setPageImageFile(file);
@@ -1039,7 +1038,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
       }
       setPageText(res.text || '');
     } catch {
-      alert('خطا در پردازش تصویر');
+      alert(tx('خطا در پردازش تصویر', 'Error processing image'));
     } finally {
       setBusyKey('');
     }
@@ -1114,7 +1113,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     try {
       const res = await api.extractTextbook(token, { grade: course.grade, subject: course.subject, ocrLang: 'fas' });
       if (!res.success) {
-        alert(res.error || 'خطا در استخراج متن');
+        alert(res.error || tx('خطا در استخراج متن', 'Text extraction error'));
         return;
       }
 
@@ -1138,7 +1137,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
           break;
         }
         if (j?.status === 'error') {
-          alert(j?.error || 'خطا در استخراج متن');
+          alert(j?.error || tx('خطا در استخراج متن', 'Text extraction error'));
           keep = false;
           break;
         }
@@ -1204,22 +1203,92 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
   const statusMessage = status?.message || status?.error;
   const courses = status?.courses || [];
   const course = courses.find(c => String(c?.courseId) === String(selectedCourseId)) || courses[0];
+  const uiCard = {
+    background: 'linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.04))',
+    border: '1px solid var(--color-border)',
+    borderRadius: 16,
+    boxShadow: 'var(--shadow-sm)',
+  };
+  const uiField = {
+    padding: '10px 12px',
+    borderRadius: 12,
+    border: '1px solid var(--color-border)',
+    background: 'rgba(6, 12, 24, 0.55)',
+    color: 'var(--color-text-primary)',
+    outline: 'none',
+    fontWeight: 600,
+  };
+  const uiButton = {
+    padding: '10px 14px',
+    borderRadius: 12,
+    border: '1px solid var(--color-border)',
+    background: 'rgba(255,255,255,0.08)',
+    color: 'var(--color-text-primary)',
+    cursor: 'pointer',
+    fontWeight: 800,
+  };
+  const uiPrimaryButton = {
+    ...uiButton,
+    border: '1px solid transparent',
+    background: 'linear-gradient(135deg, var(--color-primary), var(--color-primary-hover))',
+    color: '#fff',
+    boxShadow: '0 10px 26px rgba(56,189,248,0.25)',
+  };
 
   return (
-    <div style={{ minHeight: '100vh', padding: 20, background: 'linear-gradient(135deg,#0f1220,#16213e)', color: '#fff', fontFamily: "'Vazirmatn','Segoe UI',sans-serif" }}>
-      <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>← {t('nav.back')}</button>
+    <div style={{ minHeight: '100vh', padding: 20, background: 'radial-gradient(circle at top, rgba(56,189,248,0.12), transparent 36%), linear-gradient(135deg,#090d18,#111b30)', color: '#fff', fontFamily: "'Vazirmatn','Segoe UI',sans-serif" }}>
+      <button onClick={onBack} style={{ ...uiButton, background: 'transparent' }}>← {t('nav.back')}</button>
 
-      <div style={{ marginTop: 10, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input type="number" value={grade} onChange={(e) => setGrade(Number(e.target.value))} style={{ padding: 10, borderRadius: 10, width: 120 }} />
-        <select value={subject} onChange={(e) => setSubject(e.target.value)} style={{ padding: 10, borderRadius: 10 }}>
+      <div style={{ ...uiCard, marginTop: 12, padding: 12, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input type="number" value={grade} onChange={(e) => setGrade(Number(e.target.value))} style={{ ...uiField, width: 120 }} />
+        <select value={subject} onChange={(e) => setSubject(e.target.value)} style={uiField}>
           {SUBJECTS.map(s => <option key={s.id} value={s.id}>{t(s.labelKey)}</option>)}
         </select>
-        <button onClick={async () => { await loadAllCourses(); setShowCourseManager(true); }} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 800 }}>
+        <button onClick={async () => { await loadAllCourses(); setShowCourseManager(true); }} style={uiButton}>
           {t('nav.courses')}
         </button>
-        <button onClick={loadStatus} disabled={loading} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 800 }}>
-          {loading ? '...' : t('nav.refresh')}
-        </button>
+        <div style={{ marginInlineStart: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ opacity: 0.78, fontWeight: 800, fontSize: 12, letterSpacing: 0.5 }}>AI</div>
+          <div style={{
+            display: 'flex',
+            gap: 6,
+            padding: 6,
+            borderRadius: 999,
+            border: '1px solid var(--color-border)',
+            background: 'rgba(255,255,255,0.04)'
+          }}>
+            <button
+              onClick={() => setMissionAiProvider('anthropic')}
+              style={{
+                padding: '7px 12px',
+                borderRadius: 999,
+                border: '1px solid transparent',
+                background: missionAiProvider === 'anthropic' ? 'linear-gradient(135deg, rgba(255,255,255,0.22), rgba(255,255,255,0.10))' : 'transparent',
+                color: '#fff',
+                cursor: 'pointer',
+                fontWeight: 800,
+                fontSize: 12
+              }}
+            >
+              ANTHROPIC
+            </button>
+            <button
+              onClick={() => setMissionAiProvider('openai')}
+              style={{
+                padding: '7px 12px',
+                borderRadius: 999,
+                border: '1px solid transparent',
+                background: missionAiProvider === 'openai' ? 'linear-gradient(135deg, rgba(255,255,255,0.22), rgba(255,255,255,0.10))' : 'transparent',
+                color: '#fff',
+                cursor: 'pointer',
+                fontWeight: 800,
+                fontSize: 12
+              }}
+            >
+              GPT
+            </button>
+          </div>
+        </div>
       </div>
 
       {showCourseManager && (
@@ -1488,10 +1557,10 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
               <button onClick={() => setShowPdfUpload(false)} style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>
-                انصراف
+                {tx('انصراف', 'Cancel')}
               </button>
               <button onClick={uploadTextbookPdf} disabled={busyKey === 'pdf-upload' || !dashboardPdfFile} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-                {busyKey === 'pdf-upload' ? 'در حال آپلود...' : '⬆️ آپلود'}
+                {busyKey === 'pdf-upload' ? tx('در حال آپلود...', 'Uploading...') : tx('⬆️ آپلود', '⬆️ Upload')}
               </button>
             </div>
           </div>
@@ -1514,14 +1583,14 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
             color: '#fff'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-              <div style={{ direction: 'rtl', fontWeight: 900 }}>استخراج ماموریت از یک صفحه</div>
+              <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', fontWeight: 900 }}>{tx('استخراج ماموریت از یک صفحه', 'Extract Missions from One Page')}</div>
               <button onClick={() => setShowMissionExtract(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
             </div>
 
             <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, alignItems: 'center' }}>
-              <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>درس مقصد</div>
+              <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', opacity: 0.85, fontWeight: 800 }}>{tx('درس مقصد', 'Target Lesson')}</div>
               <select value={missionTargetLessonId} onChange={(e) => setMissionTargetLessonId(e.target.value)} style={{ padding: 10, borderRadius: 10 }}>
-                <option value="">انتخاب کن...</option>
+                <option value="">{tx('انتخاب کن...', 'Select...')}</option>
                 {lessons.map(l => (
                   <option key={l._id} value={l._id}>
                     {l.chapter}. {(l?.chapterId?.title ? `${l.chapterId.title} — ` : '')}{l.title}
@@ -1532,15 +1601,15 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
             <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
               <button onClick={() => dashboardPageFileRef.current?.click()} disabled={busyKey === 'mission-ocr'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-                {busyKey === 'mission-ocr' ? 'در حال OCR...' : '📷 OCR از عکس'}
+                {busyKey === 'mission-ocr' ? tx('در حال OCR...', 'Running OCR...') : tx('📷 OCR از عکس', '📷 OCR from Image')}
               </button>
-              <div style={{ direction: 'rtl', opacity: 0.8 }}>
-                {pageImageFile ? pageImageFile.name : 'اختیاری'}
+              <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', opacity: 0.8 }}>
+                {pageImageFile ? pageImageFile.name : tx('اختیاری', 'Optional')}
               </div>
               <input ref={dashboardPageFileRef} type="file" accept="image/*" onChange={(e) => ocrPageImageToText(e.target.files?.[0])} style={{ display: 'none' }} />
             </div>
 
-            <textarea value={pageText} onChange={(e) => setPageText(e.target.value)} placeholder="متن صفحه را اینجا وارد کن..." style={{
+            <textarea value={pageText} onChange={(e) => setPageText(e.target.value)} placeholder={tx('متن صفحه را اینجا وارد کن...', 'Paste page text here...')} style={{
               width: '100%', marginTop: 12, minHeight: 200,
               padding: 10, borderRadius: 10,
               border: '1px solid rgba(255,255,255,0.18)',
@@ -1552,85 +1621,111 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
               <button onClick={() => setShowMissionExtract(false)} style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>
-                انصراف
+                {tx('انصراف', 'Cancel')}
               </button>
               <button onClick={extractMissionsFromPage} disabled={busyKey === 'mission-extract' || !pageText.trim()} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-                {busyKey === 'mission-extract' ? 'در حال ساخت...' : '🚀 ساخت و ذخیره ماموریت'}
+                {busyKey === 'mission-extract' ? tx('در حال ساخت...', 'Building...') : tx('🚀 ساخت و ذخیره ماموریت', '🚀 Build & Save Missions')}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      <div style={{ marginTop: 16, padding: 14, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
+      <div style={{ ...uiCard, marginTop: 16, padding: 16 }}>
         {!course ? (
           <div style={{ direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left' }}>{t('dashboard.noCourseHint')}</div>
         ) : (
           <>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
-              <div style={{ direction: 'rtl' }}>
-                <div style={{ fontWeight: 900 }}>{course.title}</div>
-                <div style={{ opacity: 0.8, marginTop: 4 }}>PDF: {course.pdf?.filename || 'ندارد'}</div>
-                <div style={{ opacity: 0.8, marginTop: 4 }}>Extract: {course.extracted?.exists ? `${course.extracted.method} (${course.extracted.textLength} chars)` : 'انجام نشده'}</div>
-                <div style={{ opacity: 0.8, marginTop: 4 }}>Build: {course.built?.chapters || 0} فصل / {course.built?.lessons || 0} درس</div>
-              </div>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 900 }}>AI:</div>
-                  <button
-                    onClick={() => setMissionAiProvider('anthropic')}
-                    style={{
-                      padding: '8px 10px',
-                      borderRadius: 10,
-                      border: missionAiProvider === 'anthropic' ? '1px solid rgba(255,255,255,0.38)' : '1px solid rgba(255,255,255,0.18)',
-                      background: missionAiProvider === 'anthropic' ? 'rgba(255,255,255,0.16)' : 'transparent',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontWeight: 900,
-                    }}
-                  >
-                    ANTHROPIC
-                  </button>
-                  <button
-                    onClick={() => setMissionAiProvider('openai')}
-                    style={{
-                      padding: '8px 10px',
-                      borderRadius: 10,
-                      border: missionAiProvider === 'openai' ? '1px solid rgba(255,255,255,0.38)' : '1px solid rgba(255,255,255,0.18)',
-                      background: missionAiProvider === 'openai' ? 'rgba(255,255,255,0.16)' : 'transparent',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontWeight: 900,
-                    }}
-                  >
-                    GPT
-                  </button>
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: '1.2fr 1fr',
+              gap: 14,
+              alignItems: 'start'
+            }}>
+              <div style={{
+                background: 'rgba(0,0,0,0.24)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 14,
+                padding: 14,
+                direction: 'rtl'
+              }}>
+                <div style={{ fontWeight: 950, fontSize: 16 }}>{course.title || `${t('dashboard.grade')} ${grade}`}</div>
+                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ opacity: 0.7 }}>PDF</span>
+                    <span style={{ fontWeight: 800 }}>{course.pdf?.filename || tx('ندارد', 'Missing')}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ opacity: 0.7 }}>Extract</span>
+                    <span style={{ fontWeight: 800 }}>{course.extracted?.exists ? `${course.extracted.method} (${course.extracted.textLength} chars)` : tx('انجام نشده', 'Not done')}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+                    <span style={{ opacity: 0.7 }}>Build</span>
+                    <span style={{ fontWeight: 800 }}>{course.built?.chapters || 0} {tx('فصل', 'chapters')} / {course.built?.lessons || 0} {tx('درس', 'lessons')}</span>
+                  </div>
                 </div>
-                <button onClick={() => setShowPdfUpload(true)} disabled={!course.courseId} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-                  📄 PDF کتاب
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+                <button onClick={() => setShowPdfUpload(true)} disabled={!course.courseId} style={uiButton}>
+                  {tx('📄 PDF کتاب', '📄 Textbook PDF')}
                 </button>
-                <button onClick={() => { setShowMissionExtract(true); setMissionTargetLessonId(selectedLessonId || ''); }} disabled={!course.courseId} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-                  🧩 ماموریت از صفحه
+                <button onClick={() => { setShowMissionExtract(true); setMissionTargetLessonId(selectedLessonId || ''); }} disabled={!course.courseId} style={uiButton}>
+                  {tx('🧩 ماموریت از صفحه', '🧩 Missions from Page')}
                 </button>
-                <button onClick={() => runExtract(course)} disabled={busyKey === 'extract' || !course.pdf?.filename} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-                  {busyKey === 'extract' ? 'در حال استخراج...' : '🧠 Extract متن'}
+                <button
+                  onClick={() => setPipelineOpen(v => !v)}
+                  style={{
+                    ...uiButton,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}
+                >
+                  <span>⚙️ Pipeline</span>
+                  <span style={{ opacity: 0.8 }}>{pipelineOpen ? '▲' : '▼'}</span>
                 </button>
-                {busyKey === 'extract' && extractJob && (
-                  <div style={{ direction: 'rtl', opacity: 0.9, fontWeight: 800 }}>
-                    {(() => {
-                      const total = typeof extractJob.total === 'number' ? extractJob.total : null;
-                      const current = typeof extractJob.current === 'number' ? extractJob.current : null;
-                      const pct = total && current !== null ? Math.min(100, Math.round((current / Math.max(1, total)) * 100)) : null;
-                      if (pct !== null) return `پیشرفت: ${pct}% (${current}/${total})`;
-                      if (current !== null) return `پیشرفت: ${current}`;
-                      return 'در حال پردازش...';
-                    })()}
+                {pipelineOpen && (
+                  <div style={{
+                    padding: 10,
+                    borderRadius: 12,
+                    border: '1px solid var(--color-border)',
+                    background: 'rgba(6,12,24,0.45)',
+                    display: 'grid',
+                    gridTemplateColumns: '1fr',
+                    gap: 8
+                  }}>
+                    <button onClick={() => runExtract(course)} disabled={busyKey === 'extract' || !course.pdf?.filename} style={uiPrimaryButton}>
+                      {busyKey === 'extract' ? tx('در حال استخراج...', 'Extracting...') : tx('🧠 Extract متن', '🧠 Extract Text')}
+                    </button>
+                    {busyKey === 'extract' && extractJob && (
+                      <div style={{ direction: 'rtl', opacity: 0.9, fontWeight: 800, fontSize: 12 }}>
+                        {(() => {
+                          const total = typeof extractJob.total === 'number' ? extractJob.total : null;
+                          const current = typeof extractJob.current === 'number' ? extractJob.current : null;
+                          const pct = total && current !== null ? Math.min(100, Math.round((current / Math.max(1, total)) * 100)) : null;
+                          if (pct !== null) return tx(`پیشرفت: ${pct}% (${current}/${total})`, `Progress: ${pct}% (${current}/${total})`);
+                          if (current !== null) return tx(`پیشرفت: ${current}`, `Progress: ${current}`);
+                          return tx('در حال پردازش...', 'Processing...');
+                        })()}
+                      </div>
+                    )}
+                    <button onClick={() => runBuild(course)} disabled={busyKey === 'build' || !course.extracted?.exists} style={uiPrimaryButton}>
+                      {busyKey === 'build' ? tx('در حال ساخت...', 'Building...') : tx('🏗️ Build فصل‌ها', '🏗️ Build Chapters')}
+                    </button>
                   </div>
                 )}
-                <button onClick={() => runBuild(course)} disabled={busyKey === 'build' || !course.extracted?.exists} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-                  {busyKey === 'build' ? 'در حال ساخت...' : '🏗️ Build فصل‌ها'}
-                </button>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center' }}>
+                  <button onClick={toggleLessonsPanel} style={{
+                    ...uiButton,
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    width: '100%'
+                  }}>
+                    <span>{tx('فصول و درس‌ها', 'Chapters & Lessons')}</span>
+                    <span style={{ opacity: 0.9 }}>{lessonsOpen ? tx('▲ بستن', '▲ Close') : tx('▼ باز کردن', '▼ Open')}</span>
+                  </button>
                   <button onClick={() => {
                     // Calculate next chapter number for new chapter
                     const maxCh = lessons.length > 0
@@ -1644,7 +1739,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                     setNewLessonContent('');
                     setIsNewChapter(true); // Creating new chapter - fields should be editable
                     setShowAddLesson(true);
-                  }} disabled={!course.courseId} style={{ width: 44, height: 44, borderRadius: 12, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
+                  }} disabled={!course.courseId} style={{ ...uiPrimaryButton, width: 46, height: 46, padding: 0, borderRadius: 12, flexShrink: 0 }}>
                     +
                   </button>
                 </div>
@@ -1653,28 +1748,6 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
           </>
         )}
       </div>
-
-      {course?.courseId && (
-        <div style={{ marginTop: 10 }}>
-          <button onClick={toggleLessonsPanel} style={{
-            width: '100%',
-            padding: '10px 12px',
-            borderRadius: 14,
-            border: '1px solid rgba(255,255,255,0.12)',
-            background: lessonsOpen ? 'rgba(78,205,196,0.14)' : 'rgba(255,255,255,0.06)',
-            color: '#fff',
-            cursor: 'pointer',
-            fontWeight: 900,
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            direction: 'rtl'
-          }}>
-            <div>فصول و درس‌ها</div>
-            <div style={{ opacity: 0.9 }}>{lessonsOpen ? '▲ بستن' : '▼ باز کردن'}</div>
-          </button>
-        </div>
-      )}
 
       {lessonsOpen && (() => {
         if (lessons.length === 0) {
@@ -1689,7 +1762,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
               direction: 'rtl',
               textAlign: 'right'
             }}>
-              هنوز درسی ثبت نشده.
+              {tx('هنوز درسی ثبت نشده.', 'No lessons added yet.')}
             </div>
           );
         }
@@ -1733,7 +1806,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
                     <div style={{ fontWeight: 900 }}>
-                      فصل {ch.chapterNumber}
+                      {tx('فصل', 'Chapter')} {ch.chapterNumber}
                       {chapterTitle ? ` — ${chapterTitle}` : ''}
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1755,7 +1828,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                           cursor: 'pointer', fontWeight: 900
                         }}
                       >
-                        ➕ افزودن درس
+                        {tx('➕ افزودن درس', '➕ Add Lesson')}
                       </button>
                       <div style={{
                         padding: '4px 10px', borderRadius: 999,
@@ -1787,7 +1860,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                             }}>
                               <div style={{ fontWeight: 900 }}>{l.title}</div>
                               <div style={{ opacity: 0.7, marginTop: 4 }}>
-                                {hasContent ? 'دارای محتوا' : 'بدون محتوا'}
+                                {hasContent ? tx('دارای محتوا', 'Has content') : tx('بدون محتوا', 'No content')}
                               </div>
                             </button>
                             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -1837,7 +1910,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
               <div style={{ direction: 'rtl', fontWeight: 900 }}>
-                مدیریت ماموریت‌ها
+                {tx('مدیریت ماموریت‌ها', 'Mission Manager')}
                 {missionManagerLesson?.title ? ` — ${missionManagerLesson.title}` : ''}
               </div>
               <button onClick={() => setShowMissionManager(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
@@ -1845,23 +1918,23 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
             <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>
-                {Array.isArray(missionManagerLesson?.missions) ? `${missionManagerLesson.missions.length} ماموریت` : '0 ماموریت'}
+                {Array.isArray(missionManagerLesson?.missions) ? `${missionManagerLesson.missions.length} ${tx('ماموریت', 'missions')}` : `0 ${tx('ماموریت', 'missions')}`}
               </div>
               <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
                 <button onClick={autoGenerateMissionsFromLessonContent} disabled={busyKey === 'mission-auto'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-                  {busyKey === 'mission-auto' ? 'در حال ساخت...' : '✨ استخراج خودکار از متن درس'}
+                  {busyKey === 'mission-auto' ? tx('در حال ساخت...', 'Building...') : tx('✨ استخراج خودکار از متن درس', '✨ Auto-generate from lesson text')}
                 </button>
                 <button onClick={() => { setMissionJson('[]'); }} style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>
-                  پاک کردن
+                  {tx('پاک کردن', 'Clear')}
                 </button>
                 <button onClick={saveMissionManager} disabled={busyKey === 'mission-save'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-                  {busyKey === 'mission-save' ? 'در حال ذخیره...' : '💾 ذخیره'}
+                  {busyKey === 'mission-save' ? tx('در حال ذخیره...', 'Saving...') : tx('💾 ذخیره', '💾 Save')}
                 </button>
               </div>
             </div>
 
             <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
-              <div style={{ direction: 'rtl', fontWeight: 900 }}>لیست ماموریت‌ها</div>
+              <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', fontWeight: 900 }}>{tx('لیست ماموریت‌ها', 'Missions List')}</div>
               {(() => {
                 let arr = [];
                 try {
@@ -1870,7 +1943,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                 } catch {
                   arr = [];
                 }
-                if (!arr.length) return <div style={{ marginTop: 10, direction: 'rtl', opacity: 0.75 }}>هنوز ماموریتی ثبت نشده.</div>;
+                if (!arr.length) return <div style={{ marginTop: 10, direction: forceEnglishUi ? 'ltr' : 'rtl', opacity: 0.75 }}>{tx('هنوز ماموریتی ثبت نشده.', 'No missions yet.')}</div>;
                 return (
                   <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr', gap: 8 }}>
                     {arr.map((m, idx) => (
@@ -1904,7 +1977,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
             </div>
 
             <div style={{ marginTop: 12 }}>
-              <div style={{ direction: 'rtl', fontWeight: 900, marginBottom: 8 }}>ویرایش JSON ماموریت‌ها</div>
+              <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', fontWeight: 900, marginBottom: 8 }}>{tx('ویرایش JSON ماموریت‌ها', 'Edit Missions JSON')}</div>
               <textarea value={missionJson} onChange={(e) => setMissionJson(e.target.value)} style={{
                 width: '100%', minHeight: 260,
                 padding: 10, borderRadius: 10,
@@ -1935,12 +2008,12 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
             color: '#fff'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-              <div style={{ direction: 'rtl', fontWeight: 900 }}>افزودن درس جدید</div>
+              <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', fontWeight: 900 }}>{tx('افزودن درس جدید', 'Add New Lesson')}</div>
               <button onClick={() => setShowAddLesson(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
             </div>
 
             <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, alignItems: 'center' }}>
-              <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>شماره فصل</div>
+              <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', opacity: 0.85, fontWeight: 800 }}>{tx('شماره فصل', 'Chapter Number')}</div>
               <input 
                 value={newLessonChapter} 
                 readOnly={!isNewChapter}
@@ -1954,7 +2027,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                 }} 
               />
 
-              <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>عنوان فصل</div>
+              <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', opacity: 0.85, fontWeight: 800 }}>{tx('عنوان فصل', 'Chapter Title')}</div>
               <input 
                 value={newLessonChapterTitle} 
                 readOnly={!isNewChapter}
@@ -1970,19 +2043,19 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                 }} 
               />
 
-              <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>عنوان درس</div>
+              <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', opacity: 0.85, fontWeight: 800 }}>{tx('عنوان درس', 'Lesson Title')}</div>
               <input value={newLessonTitle} onChange={(e) => setNewLessonTitle(e.target.value)} style={{ padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: contentDirection(newLessonTitle, isRTL), textAlign: contentTextAlign(contentDirection(newLessonTitle, isRTL)) }} />
 
-              <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>محتوا</div>
+              <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', opacity: 0.85, fontWeight: 800 }}>{tx('محتوا', 'Content')}</div>
               <textarea value={newLessonContent} onChange={(e) => setNewLessonContent(e.target.value)} style={{ padding: 10, borderRadius: 10, minHeight: 160, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: contentDirection(newLessonContent, isRTL), textAlign: contentTextAlign(contentDirection(newLessonContent, isRTL)) }} />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
               <button onClick={() => setShowAddLesson(false)} style={{ padding: '10px 14px', borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'transparent', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>
-                انصراف
+                {tx('انصراف', 'Cancel')}
               </button>
               <button onClick={() => addLesson(addLessonCourseId || course.courseId)} disabled={busyKey === 'lesson-create'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-                {busyKey === 'lesson-create' ? 'در حال افزودن...' : '➕ افزودن درس'}
+                {busyKey === 'lesson-create' ? tx('در حال افزودن...', 'Adding...') : tx('➕ افزودن درس', '➕ Add Lesson')}
               </button>
             </div>
           </div>
@@ -1992,7 +2065,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
       {selectedLesson && (
         <div style={{ marginTop: 16, padding: 14, borderRadius: 14, background: 'rgba(0,0,0,0.35)', border: '1px solid rgba(255,255,255,0.12)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-            <div style={{ direction: 'rtl', fontWeight: 900 }}>ویرایش درس</div>
+            <div style={{ direction: forceEnglishUi ? 'ltr' : 'rtl', fontWeight: 900 }}>{tx('ویرایش درس', 'Edit Lesson')}</div>
             <button onClick={() => { setSelectedLesson(null); setSelectedLessonId(null); }} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
           </div>
           <input value={editChapter} onChange={(e) => setEditChapter(e.target.value)} style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
@@ -2000,7 +2073,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
           <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: contentDirection(editTitle, isRTL), textAlign: contentTextAlign(contentDirection(editTitle, isRTL)) }} />
           <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} style={{ width: '100%', marginTop: 10, minHeight: 220, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: contentDirection(editContent, isRTL), textAlign: contentTextAlign(contentDirection(editContent, isRTL)) }} />
           <button onClick={saveLesson} disabled={busyKey === 'save'} style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
-            {busyKey === 'save' ? 'در حال ذخیره...' : '💾 ذخیره'}
+            {busyKey === 'save' ? tx('در حال ذخیره...', 'Saving...') : tx('💾 ذخیره', '💾 Save')}
           </button>
         </div>
       )}
@@ -2017,6 +2090,8 @@ function buildMissions(subjectId) {
 export default function App() {
   const { t, i18n } = useTranslation();
   const [langReady, setLangReady] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('ms_theme') || 'dark');
+  const [themeMode, setThemeMode] = useState(() => localStorage.getItem('ms_theme_mode') || 'kids');
   
   // All state hooks must be declared BEFORE any early returns
   const [screen, setScreen] = useState(localStorage.getItem('token') ? 'home' : 'login');
@@ -2056,18 +2131,25 @@ export default function App() {
   // Initialize language direction - default to English
   useEffect(() => {
     const savedLang = localStorage.getItem('i18nLanguage') || 'en';
+    const savedTheme = localStorage.getItem('ms_theme') || 'dark';
+    const savedThemeMode = localStorage.getItem('ms_theme_mode') || 'kids';
     i18n.changeLanguage(savedLang).then(() => {
       const dir = savedLang === 'fa' ? 'rtl' : 'ltr';
       document.dir = dir;
       document.documentElement.dir = dir;
       document.documentElement.lang = savedLang;
       document.body.style.direction = dir;
-      document.body.style.fontFamily = savedLang === 'fa'
-        ? "'Vazirmatn','Segoe UI',sans-serif"
-        : "'Segoe UI', system-ui, -apple-system, sans-serif";
+      // Keep design tokens as the single source for visual decisions.
+      applyTheme({ theme: savedTheme, mode: savedThemeMode, lang: savedLang });
       setLangReady(true);
     });
   }, [i18n]);
+
+  useEffect(() => {
+    if (!langReady) return;
+    applyTheme({ theme, mode: themeMode, lang: i18n.language });
+    saveThemePreference(theme, themeMode);
+  }, [theme, themeMode, i18n.language, langReady]);
 
   // Profile loading - only runs when langReady is true
   useEffect(() => {
@@ -2126,9 +2208,9 @@ export default function App() {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg,#1a1a2e,#16213e)'
+        background: 'linear-gradient(135deg, var(--color-bg), var(--color-bg-muted))'
       }}>
-        <div style={{ color: '#fff', fontSize: 24 }}>Loading...</div>
+        <div style={{ color: 'var(--color-text-primary)', fontSize: 24 }}>Loading...</div>
       </div>
     );
   }
@@ -2429,6 +2511,10 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
           onLogout={logout}
           api={api}
           SUBJECTS={SUBJECTS}
+          theme={theme}
+          themeMode={themeMode}
+          onThemeChange={setTheme}
+          onThemeModeChange={setThemeMode}
         />
       )}
     </>
@@ -2529,7 +2615,7 @@ function HomeScreen({ onStart, completedSubjects, gameStats, earnedBadges, onHal
   return (
     <div style={{
       minHeight: "100vh",
- background: "linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)",
+      background: "linear-gradient(135deg, var(--color-bg) 0%, var(--color-bg-elevated) 50%, var(--color-bg-muted) 100%)",
       fontFamily: "'Vazirmatn', 'Segoe UI', sans-serif", padding: "20px", paddingBottom: "180px",
       display: "flex", flexDirection: "column", alignItems: "center", position: "relative"
     }}>
@@ -3490,7 +3576,7 @@ function SummaryScreen({ subject, stars, score, missions, onHome, completedSubje
 }
 
 // ─── BADGE HALL ───────────────────────────────────────────────────────────
-function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBadges, gameStats, completedSubjects, onBack, onLogout, api, SUBJECTS }) {
+function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBadges, gameStats, completedSubjects, onBack, onLogout, api, SUBJECTS, theme, themeMode, onThemeChange, onThemeModeChange }) {
   const { t, i18n } = useTranslation();
   const [tab, setTab] = useState(initialTab || 'badges'); // 'badges' | 'profile' | 'results'
   const [editName, setEditName] = useState(user?.name || '');
@@ -3609,7 +3695,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
               border: tab === 'badges' ? '1px solid #FFD70066' : '1px solid transparent',
               borderRadius: 20, padding: '8px 16px', fontWeight: tab === 'badges' ? 800 : 600,
               cursor: 'pointer', transition: 'all 0.2s', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6
-            }}>🏆 {user?.role === 'parent' ? 'خلاصه' : 'دستاوردها'}</button>
+            }}>🏆 {user?.role === 'parent' ? t('hall.summary') : t('hall.achievements')}</button>
             
             {(user?.role === 'parent' || user?.role === 'student' || user?.role === 'teacher' || user?.role === 'admin') && (
               <button onClick={() => fetchDetailedResults(null)} style={{
@@ -3618,7 +3704,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                 border: tab === 'results' ? '1px solid #9B59B666' : '1px solid transparent',
                 borderRadius: 20, padding: '8px 16px', fontWeight: tab === 'results' ? 800 : 600,
                 cursor: 'pointer', transition: 'all 0.2s', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6
-              }}>📝 گزارش عملکرد</button>
+              }}>📝 {t('hall.performanceReport')}</button>
             )}
 
             <button onClick={() => setTab('profile')} style={{
@@ -3627,7 +3713,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
               border: tab === 'profile' ? '1px solid #4ECDC466' : '1px solid transparent',
               borderRadius: 20, padding: '8px 16px', fontWeight: tab === 'profile' ? 800 : 600,
               cursor: 'pointer', transition: 'all 0.2s', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6
-            }}>{user?.role === 'parent' ? '👤 والدین' : '👤 پروفایل'}</button>
+            }}>{user?.role === 'parent' ? `👤 ${t('hall.parents')}` : `👤 ${t('nav.profile')}`}</button>
           </div>
         </div>
 
@@ -3639,7 +3725,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
         background: "linear-gradient(90deg,#FFD700,#FF6B6B,#4ECDC4)",
         backgroundSize: "200%", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent",
         animation: "shimmer 3s linear infinite", margin: "0 0 24px",
-      }}>{user?.role === 'parent' ? '🎯 عملکرد فرزند شما' : '🏅 تالار افتخار'}</h2>
+      }}>{user?.role === 'parent' ? `🎯 ${t('hall.childPerformance')}` : `🏅 ${t('hall.hallOfFame')}`}</h2>
 
       {/* Stats */}
       <div style={{
@@ -3647,10 +3733,10 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
         width: "100%", maxWidth: 380, marginBottom: 28,
       }}>
         {[
-          { icon: "⭐", val: gameStats.totalStars, label: "ستاره کل" },
-          { icon: "🏅", val: earnedBadges.length, label: "جمع مدال‌ها" },
-          { icon: "📚", val: gameStats.completedLessons, label: "درس کامل" },
-          { icon: "⚡", val: gameStats.fastAnswers, label: "پاسخ سریع" },
+          { icon: "⭐", val: gameStats.totalStars, label: t('hall.totalStars') },
+          { icon: "🏅", val: earnedBadges.length, label: t('hall.totalBadges') },
+          { icon: "📚", val: gameStats.completedLessons, label: t('hall.completedLessons') },
+          { icon: "⚡", val: gameStats.fastAnswers, label: t('hall.fastAnswers') },
         ].map(s => (
           <div key={s.label} style={{
             background: "rgba(255,255,255,0.07)", borderRadius: 16,
@@ -3666,7 +3752,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
       {/* Badges grid */}
       <div style={{ width: "100%", maxWidth: 400 }}>
         <div style={{ color: "#aaa", direction: "rtl", fontSize: 13, marginBottom: 14 }}>
-          مدال‌ها ({earnedBadges.length}/{BADGES.length}):
+          {t('hall.badges')} ({earnedBadges.length}/{BADGES.length}):
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
           {BADGES.map((b, i) => {
@@ -3699,18 +3785,18 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
             }}>
               {user?.role === 'teacher' || user?.role === 'admin'
                 ? (selectedStudent 
-                    ? `📝 گزارش ${selectedStudent.studentName || selectedStudent.studentEmail}` 
-                    : '📝 گزارش عملکرد دانش‌آموزان')
+                    ? `📝 ${t('hall.reportFor')} ${selectedStudent.studentName || selectedStudent.studentEmail}` 
+                    : `📝 ${t('hall.studentsPerformanceReport')}`)
                 : (filterSubject 
-                    ? `📝 گزارش ${SUBJECTS.find(s => s.id === filterSubject)?.label}` 
-                    : '📝 گزارش کلی عملکرد')
+                    ? `📝 ${t('hall.reportFor')} ${SUBJECTS.find(s => s.id === filterSubject)?.label}` 
+                    : `📝 ${t('hall.overallPerformanceReport')}`)
               }
             </h2>
             
             {/* Teacher: Student Selector */}
             {(user?.role === 'teacher' || user?.role === 'admin') && teacherStudents.length > 0 && (
               <div style={{ marginBottom: 16 }}>
-                <div style={{ color: '#aaa', fontSize: 13, marginBottom: 8 }}>انتخاب دانش‌آموز:</div>
+                <div style={{ color: '#aaa', fontSize: 13, marginBottom: 8 }}>{t('hall.selectStudent')}:</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 150, overflowY: 'auto' }}>
                   {teacherStudents.map((student) => (
                     <button
@@ -3734,7 +3820,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                       }}
                     >
                       <span>{student.studentName || student.studentEmail}</span>
-                      <span style={{ color: '#aaa', fontSize: 11 }}>کلاس {student.grade} • {student.scores?.length || 0} گزارش</span>
+                      <span style={{ color: '#aaa', fontSize: 11 }}>{t('profile.class')} {student.grade} • {student.scores?.length || 0} {t('hall.reports')}</span>
                     </button>
                   ))}
                 </div>
@@ -3748,8 +3834,8 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
             ) : detailedResults.length === 0 ? (
               <p style={{ color: '#aaa', textAlign: 'center' }}>
                 {(user?.role === 'teacher' || user?.role === 'admin') && !selectedStudent
-                  ? 'لطفاً یک دانش‌آموز را انتخاب کنید'
-                  : 'هنوز نتیجه‌ای ثبت نشده است.'
+                  ? t('hall.pleaseSelectStudent')
+                  : t('hall.noResultsYet')
                 }
               </p>
             ) : (
@@ -3763,9 +3849,9 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10, borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: 8 }}>
                           <span style={{ color: subj?.color?.bg || '#4ECDC4', fontWeight: 'bold' }}>📚 {subj?.label}</span>
                           <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-                            <span style={{ color: '#aaa', fontSize: 11 }}>{new Date(session.createdAt || session.date).toLocaleDateString('fa-IR')}</span>
+                            <span style={{ color: '#aaa', fontSize: 11 }}>{new Date(session.createdAt || session.date).toLocaleDateString(i18n.language === 'fa' ? 'fa-IR' : 'en-US')}</span>
                             <span style={{ color: 'rgba(255,215,0,0.6)', fontSize: 11, background: 'rgba(255,215,0,0.1)', padding: '2px 6px', borderRadius: '6px' }}>
-                              🕒 {new Date(session.createdAt || session.date).toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' })}
+                              🕒 {new Date(session.createdAt || session.date).toLocaleTimeString(i18n.language === 'fa' ? 'fa-IR' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                             </span>
                           </div>
                         </div>
@@ -3778,8 +3864,8 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                                   <span style={{ color: '#27AE60', fontWeight: 'bold' }}>✅ {res.correctAnswer}</span>
                                 ) : (
                                   <>
-                                    <span style={{ color: '#E74C3C' }}>❌ پاسخ {user?.role === 'parent' ? 'فرزند' : 'دانش‌آموز'}: {res.userAnswer}</span>
-                                    <span style={{ color: '#aaa' }}>- پاسخ صحیح: {res.correctAnswer}</span>
+                                    <span style={{ color: '#E74C3C' }}>❌ {t('hall.answerLabel')} {user?.role === 'parent' ? t('hall.child') : t('hall.student')}: {res.userAnswer}</span>
+                                    <span style={{ color: '#aaa' }}>- {t('hall.correctAnswer')}: {res.correctAnswer}</span>
                                   </>
                                 )}
                               </div>
@@ -3904,6 +3990,46 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                   background: 'rgba(255,255,255,0.05)'
                 }} />
               </div>
+
+              <div style={{ marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 14 }}>
+                <div style={{ color: '#aaa', fontSize: 13, marginBottom: 10 }}>
+                  {t('profile.displaySettings')}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <select
+                    value={theme}
+                    onChange={(e) => onThemeChange(e.target.value)}
+                    style={{
+                      background: 'rgba(255,255,255,0.08)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      color: '#fff',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      fontWeight: 700,
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="dark" style={{ color: '#111' }}>Dark</option>
+                    <option value="light" style={{ color: '#111' }}>Light</option>
+                  </select>
+                  <select
+                    value={themeMode}
+                    onChange={(e) => onThemeModeChange(e.target.value)}
+                    style={{
+                      background: 'rgba(255,255,255,0.08)',
+                      border: '1px solid rgba(255,255,255,0.15)',
+                      color: '#fff',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      fontWeight: 700,
+                      outline: 'none'
+                    }}
+                  >
+                    <option value="kids" style={{ color: '#111' }}>Kids</option>
+                    <option value="default" style={{ color: '#111' }}>Default</option>
+                  </select>
+                </div>
+              </div>
             </div>
 
             <button className="btn-glow" onClick={onLogout} style={{
@@ -3927,6 +4053,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
 
 // ─── CHAPTERS SCREEN ──────────────────────────────────────────────────────
 function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userProgress }) {
+  const { t } = useTranslation();
   const [chapters, setChapters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [pdfUrl, setPdfUrl] = useState(null);
@@ -4024,7 +4151,7 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
           
           <div style={{ textAlign: 'right' }}>
             <h2 style={{ color: "#fff", margin: 0, fontSize: 24, fontWeight: 900 }}>{subject?.label} {subject?.emoji}</h2>
-            <p style={{ color: "rgba(255,255,255,0.5)", margin: '4px 0 0', fontSize: 13 }}>لیست فصل‌های آموزشی</p>
+            <p style={{ color: "rgba(255,255,255,0.5)", margin: '4px 0 0', fontSize: 13 }}>{t('chapters.educationChaptersList')}</p>
           </div>
         </div>
 
@@ -4041,7 +4168,7 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
               direction: 'rtl', transition: 'transform 0.2s'
             }} className="action-btn">
               <span style={{ fontSize: 22 }}>📄</span>
-              مشاهده کامل فایل کتاب درسی (PDF)
+              {t('chapters.viewFullTextbookPdf')}
             </a>
           )}
 
@@ -4052,14 +4179,14 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
                 borderTopColor: c.bg, borderRadius: '50%',
                 display: 'inline-block', animation: 'spin 1s linear infinite'
               }}></div>
-              <p style={{ color: '#aaa', marginTop: 16 }}>در حال بارگذاری فصل‌ها...</p>
+              <p style={{ color: '#aaa', marginTop: 16 }}>{t('chapters.loadingChapters')}</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {chapters.length === 0 && !pdfUrl && (
                 <div style={{ textAlign: 'center', padding: '40px 20px', background: 'rgba(255,255,255,0.02)', borderRadius: 24 }}>
                   <div style={{ fontSize: 40, marginBottom: 16 }}>📭</div>
-                  <p style={{ color: '#777', margin: 0 }}>هنوز فصلی برای این درس ثبت نشده است.</p>
+                  <p style={{ color: '#777', margin: 0 }}>{t('chapters.noChaptersYet')}</p>
                 </div>
               )}
 
@@ -4094,7 +4221,7 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
                         fontWeight: '700', cursor: 'pointer', flex: 1, fontSize: 14,
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6
                       }} className="action-btn">
-                        {prog.read ? 'بازخوانی' : 'مطالعه درس'}
+                        {prog.read ? t('chapters.reread') : t('chapters.studyLesson')}
                         {prog.read && <span style={{fontSize: 12}}>✅</span>}
                       </button>
                       
@@ -4106,7 +4233,7 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                         boxShadow: prog.completed ? 'none' : '0 4px 12px rgba(255, 107, 107, 0.2)'
                       }} className="action-btn">
-                        {prog.completed ? 'انجام دوباره' : 'شروع ماموریت'}
+                        {prog.completed ? t('chapters.doAgain') : t('chapters.startMission')}
                         {prog.completed && <span style={{fontSize: 12}}>🏆</span>}
                       </button>
                     </div>
@@ -4126,11 +4253,11 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
           <div style={{ display: 'flex', gap: 16 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ECDC4' }}></div>
-              <span style={{ color: '#555', fontSize: 11 }}>مطالعه شده</span>
+              <span style={{ color: '#555', fontSize: 11 }}>{t('chapters.read')}</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#FF6B6B' }}></div>
-              <span style={{ color: '#555', fontSize: 11 }}>ماموریت کامل</span>
+              <span style={{ color: '#555', fontSize: 11 }}>{t('chapters.missionComplete')}</span>
             </div>
           </div>
         </div>
@@ -4141,7 +4268,7 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
 
 // ─── STUDY SCREEN ─────────────────────────────────────────────────────────
 function StudyScreen({ subject, lesson, onBack, onPlay }) {
-  const { i18n } = useTranslation();
+  const { i18n, t } = useTranslation();
   const isRTL = i18n.language === 'fa';
   const c = subject?.color || COLORS.persian;
   const containerWidth = 'min(920px, 100%)';
@@ -4325,7 +4452,7 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
     };
   }, [ttsStop]);
 
-  const content = lesson?.content || "محتوایی یافت نشد.";
+  const content = lesson?.content || t('study.noContent');
   const displayLines = useMemo(() => {
     const raw = String(content || '');
     return raw.split(/\r?\n/);
@@ -4355,7 +4482,7 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
       `}</style>
 
       <div style={{ width: containerWidth, display: 'flex', justifyContent: 'space-between', marginBottom: 20, gap: 10, alignItems: 'center' }}>
-        <button onClick={onBack} style={{ background: "none", border: "none", color: "#ccc", fontSize: 18, cursor: "pointer", whiteSpace: 'nowrap' }}>← بازگشت</button>
+        <button onClick={onBack} style={{ background: "none", border: "none", color: "#ccc", fontSize: 18, cursor: "pointer", whiteSpace: 'nowrap' }}>← {t('nav.back')}</button>
         <div style={{ color: "#FFD700", fontWeight: "bold", fontSize: 16, textAlign: 'right' }}>{subject?.label} 📖</div>
       </div>
 
@@ -4365,7 +4492,7 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
         boxShadow: "0 10px 30px rgba(0,0,0,0.5)", animation: "slideUp 0.5s ease-out",
         position: 'relative'
       }}>
-        <h3 style={{ color: '#fff', fontSize: 'clamp(18px, 2.6vw, 24px)', marginTop: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 10 }}>{lesson?.title || 'آموزش'}</h3>
+        <h3 style={{ color: '#fff', fontSize: 'clamp(18px, 2.6vw, 24px)', marginTop: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 10 }}>{lesson?.title || t('study.lessonTitleFallback')}</h3>
         <div style={{
           color: '#e0e0e0', fontSize: 'clamp(15px, 1.6vw, 18px)', lineHeight: 2, textAlign: 'justify',
           textShadow: '0 1px 2px rgba(0,0,0,0.5)',
@@ -4415,7 +4542,7 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
         fontSize: 'clamp(16px, 2vw, 18px)', fontWeight: 900, cursor: "pointer",
         boxShadow: `0 8px 24px ${c.bg}44`, animation: "slideUp 0.6s ease-out"
       }}>
-        حالا بریم ماموریت رو انجام بدیم! 🚀
+        {t('study.startMission')} 🚀
       </button>
 
       {ttsOpen && (
@@ -4437,7 +4564,7 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
           textAlign: ttsIsRTL ? 'right' : 'left',
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <div style={{ fontWeight: 900, opacity: 0.9 }}>تنظیمات صدا</div>
+            <div style={{ fontWeight: 900, opacity: 0.9 }}>{t('study.audioSettings')}</div>
             <button onClick={() => setTtsOpen(false)} style={{
               width: 36,
               height: 36,
@@ -4451,7 +4578,7 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-            }} title="بستن">
+            }} title={t('nav.close')}>
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 6 6 18" />
                 <path d="M6 6 18 18" />
@@ -4533,7 +4660,7 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-            }} title={ttsState.speaking && !ttsState.paused ? 'مکث' : 'پخش'}>
+            }} title={ttsState.speaking && !ttsState.paused ? t('study.pause') : t('study.play')}>
               {ttsState.speaking && !ttsState.paused ? (
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                   <rect x="6" y="5" width="4" height="14" rx="1.2" />
@@ -4559,7 +4686,7 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
               alignItems: 'center',
               justifyContent: 'center',
               flexShrink: 0,
-            }} title="توقف">
+            }} title={t('study.stop')}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                 <rect x="7" y="7" width="10" height="10" rx="1.4" />
               </svg>
@@ -4576,10 +4703,10 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
             background: 'rgba(0,0,0,0.16)'
           }}>
             {[
-              { rate: 0.7, level: 1, title: 'خیلی کند' },
-              { rate: 0.85, level: 2, title: 'کند' },
-              { rate: 1.0, level: 3, title: 'معمولی' },
-              { rate: 1.15, level: 4, title: 'تند' },
+              { rate: 0.7, level: 1, title: t('study.speedVerySlow') },
+              { rate: 0.85, level: 2, title: t('study.speedSlow') },
+              { rate: 1.0, level: 3, title: t('study.speedNormal') },
+              { rate: 1.15, level: 4, title: t('study.speedFast') },
             ].map((it) => (
               <button key={it.rate} onClick={() => setTtsSettingsAndApplyLive(s => ({ ...s, rate: it.rate }))} style={{
                 width: 42,
@@ -4624,7 +4751,7 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
             alignItems: 'center',
             justifyContent: 'center',
             flexShrink: 0,
-          }} title="تنظیمات">
+          }} title={t('study.settings')}>
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" />
               <path d="M19.4 15a1.8 1.8 0 0 0 .35 1.98l.05.05a2.2 2.2 0 0 1-1.56 3.76h-.15a1.8 1.8 0 0 0-1.72 1.16 2.1 2.1 0 0 1-3.94 0 1.8 1.8 0 0 0-1.72-1.16h-.15a2.2 2.2 0 0 1-1.56-3.76l.05-.05A1.8 1.8 0 0 0 4.6 15a2.1 2.1 0 0 1 0-6 1.8 1.8 0 0 0-.35-1.98l-.05-.05A2.2 2.2 0 0 1 5.76 3.2h.15A1.8 1.8 0 0 0 7.63 2.04a2.1 2.1 0 0 1 3.94 0A1.8 1.8 0 0 0 13.29 3.2h.15a2.2 2.2 0 0 1 1.56 3.76l-.05.05A1.8 1.8 0 0 0 19.4 9a2.1 2.1 0 0 1 0 6z" />
