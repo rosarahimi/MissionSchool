@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
@@ -42,6 +42,92 @@ function normalizeOrderText(s) {
     .replace(/[\s\u00A0]+/g, ' ')
     .replace(/[.\u06d4،,:;!؟“”"'«»()\[\]{}]/g, '')
     .trim();
+}
+
+function contentDirection(value, fallbackIsRTL) {
+  const s = String(value || '');
+  const rtlRe = /[\u0590-\u08FF]/;
+  const ltrRe = /[A-Za-z]/;
+  for (const ch of s) {
+    if (rtlRe.test(ch)) return 'rtl';
+    if (ltrRe.test(ch)) return 'ltr';
+  }
+  return fallbackIsRTL ? 'rtl' : 'ltr';
+}
+
+function contentTextAlign(dir) {
+  return dir === 'rtl' ? 'right' : 'left';
+}
+
+function loadTtsSettings() {
+  try {
+    const raw = localStorage.getItem('ttsSettings');
+    const parsed = raw ? JSON.parse(raw) : null;
+    return {
+      rate: typeof parsed?.rate === 'number' ? parsed.rate : 1,
+      pitch: typeof parsed?.pitch === 'number' ? parsed.pitch : 1,
+      volume: typeof parsed?.volume === 'number' ? parsed.volume : 1,
+      voiceURI: typeof parsed?.voiceURI === 'string' ? parsed.voiceURI : '',
+    };
+  } catch {
+    return { rate: 1, pitch: 1, volume: 1, voiceURI: '' };
+  }
+}
+
+function saveTtsSettings(next) {
+  try {
+    localStorage.setItem('ttsSettings', JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
+function getLangForSubject(subjectId) {
+  if (subjectId === 'persian') return 'fa-IR';
+  if (subjectId === 'arabic') return 'ar-SA';
+  return 'en-US';
+}
+
+function isRtlLang(lang) {
+  return String(lang || '').toLowerCase().startsWith('fa') || String(lang || '').toLowerCase().startsWith('ar');
+}
+
+function splitSpeakChunks(text) {
+  const s = String(text || '').replace(/\s+/g, ' ').trim();
+  if (!s) return [];
+
+  const parts = [];
+  let buf = '';
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    buf += ch;
+
+    if (ch === '.' || ch === '!' || ch === '?' || ch === '؟' || ch === '\n') {
+      const t = buf.trim();
+      if (t) parts.push(t);
+      buf = '';
+    }
+  }
+  const tail = buf.trim();
+  if (tail) parts.push(tail);
+
+  if (parts.length <= 1) return [s];
+  return parts;
+}
+
+function pickBestVoice(voices, lang, preferredURI) {
+  const list = Array.isArray(voices) ? voices : [];
+  if (preferredURI) {
+    const byUri = list.find(v => v?.voiceURI === preferredURI);
+    if (byUri) return byUri;
+  }
+  const langLc = String(lang || '').toLowerCase();
+  const exact = list.filter(v => String(v?.lang || '').toLowerCase() === langLc);
+  const starts = list.filter(v => String(v?.lang || '').toLowerCase().startsWith(langLc.split('-')[0] || langLc));
+  const candidates = (exact.length ? exact : starts.length ? starts : list);
+  const local = candidates.find(v => v?.localService);
+  const def = candidates.find(v => v?.default);
+  return local || def || candidates[0] || null;
 }
 
 const BADGES = [
@@ -196,6 +282,8 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
   const [showCourseManager, setShowCourseManager] = useState(false);
   const [allCourses, setAllCourses] = useState([]);
+  const [courseSearch, setCourseSearch] = useState('');
+  const [courseSort, setCourseSort] = useState('updated_desc');
   const [newCourseGrade, setNewCourseGrade] = useState(3);
   const [newCourseSubject, setNewCourseSubject] = useState('persian');
   const [newCourseTitle, setNewCourseTitle] = useState('');
@@ -292,6 +380,53 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     const list = await api.curriculumCourses(token);
     setAllCourses(Array.isArray(list) ? list : []);
   }, [token, api]);
+
+  const displayedCourses = useMemo(() => {
+    const q = String(courseSearch || '').trim().toLowerCase();
+
+    const subjectLabelOf = (subjId) => {
+      const found = SUBJECTS.find(s => String(s.id) === String(subjId));
+      try {
+        return String(t(found?.labelKey || subjId || '') || '').toLowerCase();
+      } catch {
+        return String(subjId || '').toLowerCase();
+      }
+    };
+
+    const filtered = allCourses.filter((c) => {
+      if (!q) return true;
+      const gradeStr = String(c?.grade ?? '').toLowerCase();
+      const subjectStr = subjectLabelOf(c?.subject);
+      const titleStr = String(c?.title ?? '').toLowerCase();
+      const rawSubjectStr = String(c?.subject ?? '').toLowerCase();
+      return (
+        gradeStr.includes(q) ||
+        subjectStr.includes(q) ||
+        rawSubjectStr.includes(q) ||
+        titleStr.includes(q)
+      );
+    });
+
+    const timeValue = (v) => {
+      const d = new Date(v);
+      const n = d.getTime();
+      return Number.isFinite(n) ? n : 0;
+    };
+
+    const sorted = [...filtered].sort((a, b) => {
+      if (courseSort === 'updated_desc') return timeValue(b?.updatedAt) - timeValue(a?.updatedAt);
+      if (courseSort === 'created_desc') return timeValue(b?.createdAt) - timeValue(a?.createdAt);
+      if (courseSort === 'title_asc') return String(a?.title || '').localeCompare(String(b?.title || ''), i18n.language);
+      if (courseSort === 'grade_subject') {
+        const g = Number(a?.grade || 0) - Number(b?.grade || 0);
+        if (g !== 0) return g;
+        return String(a?.subject || '').localeCompare(String(b?.subject || ''), 'en');
+      }
+      return 0;
+    });
+
+    return sorted;
+  }, [allCourses, courseSearch, courseSort, SUBJECTS, t, i18n.language]);
 
   async function loadLessonsForCourse(courseId, opts = {}) {
     const list = await api.curriculumLessons(token, { courseId, chapterId: opts.chapterId, includeUnlinked: true });
@@ -723,7 +858,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                 </select>
 
                 <div style={{ direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left', opacity: 0.85, fontWeight: 800 }}>{t('dashboard.courseTitle')}</div>
-                <input value={newCourseTitle} onChange={(e) => setNewCourseTitle(e.target.value)} style={{ padding: 10, borderRadius: 10, direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left' }} />
+                <input value={newCourseTitle} onChange={(e) => setNewCourseTitle(e.target.value)} style={{ padding: 10, borderRadius: 10, direction: contentDirection(newCourseTitle, isRTL), textAlign: contentTextAlign(contentDirection(newCourseTitle, isRTL)) }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
                 <button onClick={createCourse} disabled={busyKey === 'course-create'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
@@ -734,39 +869,147 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
             <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
               <div style={{ direction: isRTL ? 'rtl' : 'ltr', fontWeight: 900, textAlign: isRTL ? 'right' : 'left' }}>{t('dashboard.courseList')}</div>
-              {allCourses.length === 0 ? (
+              <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr 210px', gap: 10, alignItems: 'center' }}>
+                <input
+                  value={courseSearch}
+                  onChange={(e) => setCourseSearch(e.target.value)}
+                  placeholder={t('dashboard.searchCoursesPlaceholder')}
+                  style={{
+                    padding: 10,
+                    borderRadius: 10,
+                    border: '1px solid rgba(255,255,255,0.18)',
+                    background: 'rgba(0,0,0,0.22)',
+                    color: '#fff',
+                    direction: contentDirection(courseSearch, isRTL),
+                    textAlign: contentTextAlign(contentDirection(courseSearch, isRTL))
+                  }}
+                />
+                <select
+                  value={courseSort}
+                  onChange={(e) => setCourseSort(e.target.value)}
+                  style={{
+                    padding: 10,
+                    borderRadius: 10,
+                    border: '1px solid rgba(255,255,255,0.18)',
+                    background: 'rgba(0,0,0,0.22)',
+                    color: '#fff',
+                    direction: isRTL ? 'rtl' : 'ltr',
+                    textAlign: isRTL ? 'right' : 'left'
+                  }}
+                >
+                  <option value="updated_desc">{t('dashboard.sortUpdated')}</option>
+                  <option value="created_desc">{t('dashboard.sortCreated')}</option>
+                  <option value="title_asc">{t('dashboard.sortTitle')}</option>
+                  <option value="grade_subject">{t('dashboard.sortGradeSubject')}</option>
+                </select>
+              </div>
+
+              {displayedCourses.length === 0 ? (
                 <div style={{ marginTop: 10, direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left', opacity: 0.8 }}>{t('dashboard.noCourses')}</div>
               ) : (
-                <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
-                  {allCourses.map(c => (
-                    <div key={c._id} style={{
-                      padding: 12,
-                      borderRadius: 14,
-                      background: 'rgba(0,0,0,0.25)',
-                      border: '1px solid rgba(255,255,255,0.12)'
-                    }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <button onClick={async () => {
-                          setGrade(Number(c.grade));
-                          setSubject(String(c.subject));
-                          setShowCourseManager(false);
-                        }} style={{
-                          background: 'none', border: 'none', cursor: 'pointer',
-                          color: '#fff', fontWeight: 900, direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left', padding: 0
+                <div style={{ marginTop: 10 }}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1.6fr 0.7fr 0.7fr 0.7fr 120px',
+                    gap: 10,
+                    padding: '10px 12px',
+                    borderRadius: 12,
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    fontWeight: 900,
+                    fontSize: 12,
+                    direction: isRTL ? 'rtl' : 'ltr',
+                    textAlign: isRTL ? 'right' : 'left'
+                  }}>
+                    <div>{t('dashboard.courseColTitle')}</div>
+                    <div>{t('dashboard.courseColPdf')}</div>
+                    <div>{t('dashboard.courseColExtract')}</div>
+                    <div>{t('dashboard.courseColBuild')}</div>
+                    <div style={{ textAlign: 'center' }}>{t('dashboard.courseColActions')}</div>
+                  </div>
+
+                  <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+                    {displayedCourses.map(c => {
+                      const subjectLabelKey = SUBJECTS.find(s => s.id === c.subject)?.labelKey || c.subject;
+                      const rowTitle = `${t('dashboard.grade')} ${c.grade} — ${t(subjectLabelKey)}${c.title ? ` | ${c.title}` : ''}`;
+                      const hasPdf = !!c?.pdf?.filename;
+                      const hasExtract = !!c?.extracted?.exists;
+                      const hasBuild = Number(c?.built?.chapters || 0) > 0 || Number(c?.built?.lessons || 0) > 0;
+
+                      return (
+                        <div key={c._id} style={{
+                          padding: 12,
+                          borderRadius: 14,
+                          background: 'rgba(0,0,0,0.25)',
+                          border: '1px solid rgba(255,255,255,0.12)'
                         }}>
-                          {t('dashboard.grade')} {c.grade} — {t(SUBJECTS.find(s => s.id === c.subject)?.labelKey || c.subject)}
-                          {c.title ? ` | ${c.title}` : ''}
-                        </button>
-                        <button onClick={() => removeCourse(c._id)} disabled={busyKey === `course-del-${c._id}`} style={{
-                          padding: '8px 10px', borderRadius: 10,
-                          border: 'none', cursor: 'pointer', fontWeight: 900,
-                          background: 'rgba(255,77,77,0.18)', color: '#fff'
-                        }}>
-                          {busyKey === `course-del-${c._id}` ? '...' : '🗑️'}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                          <div style={{
+                            display: 'grid',
+                            gridTemplateColumns: '1.6fr 0.7fr 0.7fr 0.7fr 120px',
+                            gap: 10,
+                            alignItems: 'center',
+                            direction: isRTL ? 'rtl' : 'ltr'
+                          }}>
+                            <button onClick={async () => {
+                              setGrade(Number(c.grade));
+                              setSubject(String(c.subject));
+                              setShowCourseManager(false);
+                            }} style={{
+                              background: 'none',
+                              border: 'none',
+                              cursor: 'pointer',
+                              color: '#fff',
+                              fontWeight: 900,
+                              padding: 0,
+                              direction: isRTL ? 'rtl' : 'ltr',
+                              textAlign: isRTL ? 'right' : 'left',
+                              lineHeight: 1.35
+                            }}>
+                              {rowTitle}
+                              {!!c?.updatedAt && (
+                                <div style={{ marginTop: 4, opacity: 0.65, fontWeight: 700, fontSize: 12 }}>
+                                  {t('dashboard.lastUpdate')}: {new Date(c.updatedAt).toLocaleString(i18n.language === 'fa' ? 'fa-IR' : 'en-US')}
+                                </div>
+                              )}
+                            </button>
+
+                            <div style={{ opacity: 0.9, fontWeight: 900, textAlign: isRTL ? 'right' : 'left' }}>
+                              {hasPdf ? t('dashboard.statusAvailable') : t('dashboard.statusMissing')}
+                            </div>
+
+                            <div style={{ opacity: 0.9, fontWeight: 900, textAlign: isRTL ? 'right' : 'left' }}>
+                              {hasExtract ? t('dashboard.statusDone') : t('dashboard.statusPending')}
+                            </div>
+
+                            <div style={{ opacity: 0.9, fontWeight: 900, textAlign: isRTL ? 'right' : 'left' }}>
+                              {hasBuild ? t('dashboard.statusDone') : t('dashboard.statusPending')}
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                              <button
+                                onClick={() => removeCourse(c._id)}
+                                disabled={busyKey === `course-del-${c._id}`}
+                                style={{
+                                  padding: '8px 10px',
+                                  borderRadius: 10,
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  fontWeight: 900,
+                                  background: 'rgba(255,77,77,0.18)',
+                                  color: '#fff',
+                                  minWidth: 44
+                                }}
+                                title={t('dashboard.deleteCourseAction')}
+                                aria-label={t('dashboard.deleteCourseAction')}
+                              >
+                                {busyKey === `course-del-${c._id}` ? '...' : '🗑️'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>
@@ -904,7 +1147,9 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
               padding: 10, borderRadius: 10,
               border: '1px solid rgba(255,255,255,0.18)',
               background: 'rgba(255,255,255,0.06)',
-              color: '#fff', direction: 'rtl'
+              color: '#fff',
+              direction: contentDirection(pageText, isRTL),
+              textAlign: contentTextAlign(contentDirection(pageText, isRTL))
             }} />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
@@ -1322,15 +1567,16 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                   background: isNewChapter ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.04)', 
                   color: isNewChapter ? '#fff' : '#aaa',
                   cursor: isNewChapter ? 'text' : 'default',
-                  direction: 'rtl' 
+                  direction: contentDirection(newLessonChapterTitle, isRTL),
+                  textAlign: contentTextAlign(contentDirection(newLessonChapterTitle, isRTL))
                 }} 
               />
 
               <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>عنوان درس</div>
-              <input value={newLessonTitle} onChange={(e) => setNewLessonTitle(e.target.value)} style={{ padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: 'rtl' }} />
+              <input value={newLessonTitle} onChange={(e) => setNewLessonTitle(e.target.value)} style={{ padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: contentDirection(newLessonTitle, isRTL), textAlign: contentTextAlign(contentDirection(newLessonTitle, isRTL)) }} />
 
               <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>محتوا</div>
-              <textarea value={newLessonContent} onChange={(e) => setNewLessonContent(e.target.value)} style={{ padding: 10, borderRadius: 10, minHeight: 160, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: 'rtl' }} />
+              <textarea value={newLessonContent} onChange={(e) => setNewLessonContent(e.target.value)} style={{ padding: 10, borderRadius: 10, minHeight: 160, border: '1px solid rgba(255,255,255,0.18)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: contentDirection(newLessonContent, isRTL), textAlign: contentTextAlign(contentDirection(newLessonContent, isRTL)) }} />
             </div>
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
@@ -1352,9 +1598,9 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
             <button onClick={() => { setSelectedLesson(null); setSelectedLessonId(null); }} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>✕</button>
           </div>
           <input value={editChapter} onChange={(e) => setEditChapter(e.target.value)} style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
-          <input value={editChapterTitle} onChange={(e) => setEditChapterTitle(e.target.value)} style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: 'rtl' }} />
-          <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff' }} />
-          <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} style={{ width: '100%', marginTop: 10, minHeight: 220, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: 'rtl' }} />
+          <input value={editChapterTitle} onChange={(e) => setEditChapterTitle(e.target.value)} style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: contentDirection(editChapterTitle, isRTL), textAlign: contentTextAlign(contentDirection(editChapterTitle, isRTL)) }} />
+          <input value={editTitle} onChange={(e) => setEditTitle(e.target.value)} style={{ width: '100%', marginTop: 10, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: contentDirection(editTitle, isRTL), textAlign: contentTextAlign(contentDirection(editTitle, isRTL)) }} />
+          <textarea value={editContent} onChange={(e) => setEditContent(e.target.value)} style={{ width: '100%', marginTop: 10, minHeight: 220, padding: 10, borderRadius: 10, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.06)', color: '#fff', direction: contentDirection(editContent, isRTL), textAlign: contentTextAlign(contentDirection(editContent, isRTL)) }} />
           <button onClick={saveLesson} disabled={busyKey === 'save'} style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
             {busyKey === 'save' ? 'در حال ذخیره...' : '💾 ذخیره'}
           </button>
@@ -1599,8 +1845,8 @@ export default function App() {
       question: m.q,
       correct,
       userAnswer: m.type === 'mcq'
-        ? (timeout ? 'بی ‌پاسخ' : (safeOptions?.[value] ?? value))
-        : (value || 'بی ‌پاسخ'),
+        ? (timeout ? 'بی‌پاسخ' : (safeOptions?.[value] ?? value))
+        : (value || 'بی‌پاسخ'),
       correctAnswer: m.type === 'mcq'
         ? (safeOptions?.[m.answer] ?? m.answer)
         : (m.blank || m.answer)
@@ -2069,11 +2315,156 @@ function GameScreen({
   const { t, i18n } = useTranslation();
   const c = subject?.color || COLORS.persian;
   const dragRef = useRef(null); // { from: 'available'|'selected', index: number }
+  const [ttsSettings, setTtsSettings] = useState(loadTtsSettings());
+  const [ttsVoices, setTtsVoices] = useState([]);
+  const [ttsOpen, setTtsOpen] = useState(false);
+  const ttsQueueRef = useRef([]);
+  const ttsLang = getLangForSubject(subject?.id);
+  const ttsIsRTL = isRtlLang(ttsLang);
+
   const progress = (missionIdx / totalMissions) * 100;
   const timerPct = (timeLeft / 30) * 100;
   const timerColor = timeLeft > 15 ? "#4ECDC4" : timeLeft > 8 ? "#FFD700" : "#FF6B6B";
   const safeMissionOptions = Array.isArray(mission?.options) ? mission.options : [];
   const safeMissionWords = Array.isArray(mission?.words) ? mission.words : [];
+
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return;
+    const load = () => {
+      try {
+        const v = window.speechSynthesis.getVoices();
+        setTtsVoices(Array.isArray(v) ? v : []);
+      } catch {
+        setTtsVoices([]);
+      }
+    };
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+    return () => {
+      try {
+        window.speechSynthesis.onvoiceschanged = null;
+      } catch {
+        // ignore
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    saveTtsSettings(ttsSettings);
+  }, [ttsSettings]);
+
+  const ttsStop = useCallback(() => {
+    if (!('speechSynthesis' in window)) return;
+    ttsQueueRef.current = [];
+    ttsChunksRef.current = [];
+    ttsIdxRef.current = 0;
+    window.speechSynthesis.cancel();
+    setTtsState({ speaking: false, paused: false });
+  }, []);
+
+  const ttsPause = useCallback(() => {
+    if (!('speechSynthesis' in window)) return;
+    try { window.speechSynthesis.pause(); } catch { /* ignore */ }
+    setTtsState(s => ({ ...s, paused: true }));
+  }, []);
+
+  const ttsResume = useCallback(() => {
+    if (!('speechSynthesis' in window)) return;
+    try { window.speechSynthesis.resume(); } catch { /* ignore */ }
+    setTtsState(s => ({ ...s, paused: false, speaking: true }));
+  }, []);
+
+  const ttsSpeak = useCallback((text, opts = {}) => {
+    if (!('speechSynthesis' in window)) return;
+    const clean = String(text || '').trim();
+    if (!clean) return;
+    const startIndex = Number.isFinite(opts?.startIndex) ? Math.max(0, Math.floor(opts.startIndex)) : 0;
+    const keepIndexIfSameText = !!opts?.keepIndexIfSameText;
+
+    if (!keepIndexIfSameText || ttsLastTextRef.current !== clean) {
+      ttsLastTextRef.current = clean;
+      ttsChunksRef.current = splitSpeakChunks(clean);
+      ttsIdxRef.current = startIndex;
+    }
+
+    const chunks = Array.isArray(ttsChunksRef.current) ? ttsChunksRef.current : [];
+    if (!chunks.length) return;
+
+    ttsQueueRef.current = chunks.slice(ttsIdxRef.current);
+    window.speechSynthesis.cancel();
+    ttsPendingRestartRef.current = false;
+    setTtsState({ speaking: true, paused: false });
+
+    const speakNext = () => {
+      if (!ttsQueueRef.current.length) {
+        setTtsState({ speaking: false, paused: false });
+        return;
+      }
+      const part = ttsQueueRef.current.shift();
+      if (part == null) {
+        setTtsState({ speaking: false, paused: false });
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(part);
+      utterance.lang = ttsLang;
+      utterance.rate = Math.max(0.6, Math.min(1.25, Number(ttsSettings.rate) || 1));
+      utterance.pitch = Math.max(0.8, Math.min(1.2, Number(ttsSettings.pitch) || 1));
+      utterance.volume = Math.max(0, Math.min(1, Number(ttsSettings.volume) || 1));
+      const voice = pickBestVoice(ttsVoices, ttsLang, ttsSettings.voiceURI);
+      if (voice) utterance.voice = voice;
+      utterance.onend = () => {
+        ttsIdxRef.current += 1;
+        if (ttsPendingRestartRef.current && ttsLastTextRef.current) {
+          ttsPendingRestartRef.current = false;
+          const currentIndex = Math.max(0, Number(ttsIdxRef.current) || 0);
+          ttsSpeak(ttsLastTextRef.current, { keepIndexIfSameText: true, startIndex: currentIndex });
+          return;
+        }
+        speakNext();
+      };
+      utterance.onerror = () => {
+        ttsQueueRef.current = [];
+        setTtsState({ speaking: false, paused: false });
+      };
+      window.speechSynthesis.speak(utterance);
+    };
+
+    speakNext();
+  }, [ttsLang, ttsSettings, ttsVoices, ttsStop]);
+
+  const setTtsSettingsAndApplyLive = useCallback((updater) => {
+    setTtsSettings((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try { saveTtsSettings(next); } catch { /* ignore */ }
+
+      const shouldApplySoon = ttsState.speaking && !ttsState.paused && ttsLastTextRef.current;
+      if (shouldApplySoon) {
+        ttsPendingRestartRef.current = true;
+      }
+      return next;
+    });
+  }, [ttsSpeak, ttsState.paused, ttsState.speaking]);
+
+  const ttsTogglePlayPause = useCallback((text) => {
+    if (!('speechSynthesis' in window)) return;
+    if (ttsState.speaking && !ttsState.paused) {
+      ttsPause();
+      return;
+    }
+    if (ttsState.speaking && ttsState.paused) {
+      ttsResume();
+      return;
+    }
+    const currentIndex = Math.max(0, Number(ttsIdxRef.current) || 0);
+    ttsSpeak(text, { keepIndexIfSameText: true, startIndex: currentIndex });
+  }, [ttsPause, ttsResume, ttsSpeak, ttsState.paused, ttsState.speaking]);
+
+  useEffect(() => {
+    return () => {
+      ttsStop();
+    };
+  }, [ttsStop, missionIdx]);
 
   const derivedOrderWordsFromQuestion = () => {
     const rawQ = String(mission?.q || '').trim();
@@ -2181,28 +2572,7 @@ function GameScreen({
     // Dropping an available word back into available is a no-op.
   }
 
-  const playAudio = (text) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      if (subject?.id === 'english') {
-        utterance.lang = 'en-US';
-      } else if (subject?.id === 'arabic') {
-        utterance.lang = 'ar-SA';
-      } else {
-        utterance.lang = 'fa-IR';
-      }
-      window.speechSynthesis.speak(utterance);
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
-      }
-    };
-  }, [mission]);
+  // playAudio replaced by ttsSpeak with settings.
 
   if (showStageComplete) return (
     <div style={{
@@ -2302,11 +2672,15 @@ function GameScreen({
 
         {/* Question */}
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '12px', marginBottom: 20, flexDirection: subject?.dir === 'ltr' ? 'row' : 'row-reverse' }}>
-          <button onClick={() => playAudio(mission.q)} style={{
+          <button onClick={() => ttsSpeak(mission.q)} style={{
             background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
             width: 44, height: 44, color: '#FFD700', cursor: 'pointer', fontSize: 20, flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s',
           }} title={t('game.readAloud')}>🔊</button>
+          <button onClick={() => setTtsOpen(v => !v)} style={{
+            background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.14)', borderRadius: 14,
+            padding: '8px 10px', color: '#fff', cursor: 'pointer', fontWeight: 900, fontSize: 13, flexShrink: 0,
+          }} title="TTS Settings">⚙️</button>
           <div style={{
             color: "#fff", fontWeight: 700, fontSize: 17,
             direction: subject?.dir || "rtl", lineHeight: 1.6,
@@ -2316,6 +2690,68 @@ function GameScreen({
             {mission.type === 'order' ? orderQuestion : mission.q}
           </div>
         </div>
+
+        {ttsOpen && (
+          <div style={{
+            marginBottom: 16,
+            padding: 12,
+            borderRadius: 16,
+            background: 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.12)',
+            direction: isRtlLang(ttsLang) ? 'rtl' : 'ltr',
+            textAlign: isRtlLang(ttsLang) ? 'right' : 'left',
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+              <div style={{ fontWeight: 900, opacity: 0.9 }}>TTS</div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={ttsPause} style={{ padding: '8px 10px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.18)', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>⏸</button>
+                <button onClick={ttsResume} style={{ padding: '8px 10px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(0,0,0,0.18)', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>▶</button>
+                <button onClick={ttsStop} style={{ padding: '8px 10px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.14)', background: 'rgba(255,77,77,0.18)', color: '#fff', cursor: 'pointer', fontWeight: 900 }}>⏹</button>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 70px', gap: 10, alignItems: 'center' }}>
+                <div style={{ opacity: 0.85, fontWeight: 800 }}>Rate</div>
+                <input type="range" min="0.6" max="1.25" step="0.05" value={ttsSettings.rate} onChange={(e) => setTtsSettingsAndApplyLive(s => ({ ...s, rate: Number(e.target.value) }))} />
+                <div style={{ fontWeight: 900 }}>{Number(ttsSettings.rate).toFixed(2)}</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 70px', gap: 10, alignItems: 'center' }}>
+                <div style={{ opacity: 0.85, fontWeight: 800 }}>Pitch</div>
+                <input type="range" min="0.8" max="1.2" step="0.05" value={ttsSettings.pitch} onChange={(e) => setTtsSettingsAndApplyLive(s => ({ ...s, pitch: Number(e.target.value) }))} />
+                <div style={{ fontWeight: 900 }}>{Number(ttsSettings.pitch).toFixed(2)}</div>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 70px', gap: 10, alignItems: 'center' }}>
+                <div style={{ opacity: 0.85, fontWeight: 800 }}>Volume</div>
+                <input type="range" min="0" max="1" step="0.05" value={ttsSettings.volume} onChange={(e) => setTtsSettingsAndApplyLive(s => ({ ...s, volume: Number(e.target.value) }))} />
+                <div style={{ fontWeight: 900 }}>{Number(ttsSettings.volume).toFixed(2)}</div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+                <div style={{ opacity: 0.85, fontWeight: 800 }}>Voice</div>
+                <select value={ttsSettings.voiceURI} onChange={(e) => setTtsSettingsAndApplyLive(s => ({ ...s, voiceURI: e.target.value }))} style={{
+                  padding: 10,
+                  borderRadius: 12,
+                  border: '1px solid rgba(255,255,255,0.14)',
+                  background: 'rgba(0,0,0,0.18)',
+                  color: '#fff',
+                  outline: 'none'
+                }}>
+                  <option value="">Auto</option>
+                  {ttsVoices
+                    .filter(v => {
+                      const vLang = String(v?.lang || '').toLowerCase();
+                      const base = String(ttsLang || '').toLowerCase().split('-')[0];
+                      return base ? vLang.startsWith(base) : true;
+                    })
+                    .map(v => (
+                      <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>
+                    ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* MCQ */}
         {mission.type === "mcq" && !feedback && (
@@ -2372,8 +2808,9 @@ function GameScreen({
                   flex: 1, padding: "14px 16px",
                   background: "rgba(255,255,255,0.1)", border: "2px solid rgba(255,255,255,0.2)",
                   borderRadius: 16, color: "#fff", fontSize: 16, fontFamily: "inherit",
-                  direction: subject?.dir, outline: "none",
-                  textAlign: subject?.dir === "ltr" ? "left" : "right"
+                  direction: contentDirection(fillVal, subject?.dir !== 'ltr'),
+                  textAlign: contentTextAlign(contentDirection(fillVal, subject?.dir !== 'ltr')),
+                  outline: "none",
                 }}
                 autoFocus
               />
@@ -2484,7 +2921,7 @@ function GameScreen({
               {feedback.correct && <StarBurst count={feedback.stars} />}
               {(String(feedback.exp || '').trim() || !feedback.correct) && (
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '8px', marginTop: 10, direction: 'rtl' }}>
-                  <button onClick={() => playAudio(String(feedback.exp || '').trim() || t('game.seeCorrectAnswer'))} title={t('game.playExplanation')} style={{
+                  <button onClick={() => ttsSpeak(String(feedback.exp || '').trim() || t('game.seeCorrectAnswer'))} title={t('game.playExplanation')} style={{
                     background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
                     width: 32, height: 32, color: '#4ECDC4', cursor: 'pointer', fontSize: 16, flexShrink: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -2943,7 +3380,9 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                     style={{
                       flex: 1, padding: '12px 16px', borderRadius: 14,
                       background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
-                      color: '#fff', fontSize: 14, outline: 'none', fontFamily: 'inherit'
+                      color: '#fff', fontSize: 14, outline: 'none', fontFamily: 'inherit',
+                      direction: contentDirection(editName, i18n.language === 'fa'),
+                      textAlign: contentTextAlign(contentDirection(editName, i18n.language === 'fa'))
                     }}
                   />
                   <button 
@@ -3262,32 +3701,185 @@ function ChaptersScreen({ subject, token, user, onBack, onStudy, onPlay, userPro
 
 // ─── STUDY SCREEN ─────────────────────────────────────────────────────────
 function StudyScreen({ subject, lesson, onBack, onPlay }) {
+  const { i18n } = useTranslation();
+  const isRTL = i18n.language === 'fa';
   const c = subject?.color || COLORS.persian;
   const containerWidth = 'min(920px, 100%)';
 
-  const playAudio = (text) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = 'fa-IR';
-      window.speechSynthesis.speak(utterance);
-    }
-  };
+  const [ttsSettings, setTtsSettings] = useState(loadTtsSettings());
+  const [ttsVoices, setTtsVoices] = useState([]);
+  const [ttsOpen, setTtsOpen] = useState(false);
+  const ttsQueueRef = useRef([]);
+  const ttsChunksRef = useRef([]);
+  const ttsIdxRef = useRef(0);
+  const ttsLastTextRef = useRef('');
+  const ttsPendingRestartRef = useRef(false);
+  const [ttsState, setTtsState] = useState({ speaking: false, paused: false });
+  const ttsLang = getLangForSubject(subject?.id);
+  const ttsIsRTL = isRtlLang(ttsLang);
 
   useEffect(() => {
+    if (!('speechSynthesis' in window)) return;
+    const id = setInterval(() => {
+      try {
+        const ss = window.speechSynthesis;
+        const speaking = !!ss.speaking;
+        const paused = !!ss.paused;
+        setTtsState((prev) => {
+          if (prev.speaking === speaking && prev.paused === paused) return prev;
+          return { speaking, paused };
+        });
+      } catch {
+        // ignore
+      }
+    }, 200);
+    return () => clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    if (!('speechSynthesis' in window)) return;
+    const load = () => {
+      try {
+        const v = window.speechSynthesis.getVoices();
+        setTtsVoices(Array.isArray(v) ? v : []);
+      } catch {
+        setTtsVoices([]);
+      }
+    };
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
     return () => {
-      if ('speechSynthesis' in window) {
-        window.speechSynthesis.cancel();
+      try {
+        window.speechSynthesis.onvoiceschanged = null;
+      } catch {
+        // ignore
       }
     };
   }, []);
+
+  useEffect(() => {
+    saveTtsSettings(ttsSettings);
+  }, [ttsSettings]);
+
+  const ttsStop = useCallback(() => {
+    if (!('speechSynthesis' in window)) return;
+    ttsQueueRef.current = [];
+    ttsChunksRef.current = [];
+    ttsIdxRef.current = 0;
+    window.speechSynthesis.cancel();
+    setTtsState({ speaking: false, paused: false });
+  }, []);
+
+  const ttsPause = useCallback(() => {
+    if (!('speechSynthesis' in window)) return;
+    try { window.speechSynthesis.pause(); } catch { /* ignore */ }
+    setTtsState(s => ({ ...s, paused: true }));
+  }, []);
+
+  const ttsResume = useCallback(() => {
+    if (!('speechSynthesis' in window)) return;
+    try { window.speechSynthesis.resume(); } catch { /* ignore */ }
+    setTtsState(s => ({ ...s, paused: false, speaking: true }));
+  }, []);
+
+  const ttsSpeak = useCallback((text, opts = {}) => {
+    if (!('speechSynthesis' in window)) return;
+    const clean = String(text || '').trim();
+    if (!clean) return;
+
+    const startIndex = Number.isFinite(opts?.startIndex) ? Math.max(0, Math.floor(opts.startIndex)) : 0;
+    const keepIndexIfSameText = !!opts?.keepIndexIfSameText;
+
+    const chunksMissing = !Array.isArray(ttsChunksRef.current) || ttsChunksRef.current.length === 0;
+    if (!keepIndexIfSameText || ttsLastTextRef.current !== clean || chunksMissing) {
+      ttsLastTextRef.current = clean;
+      ttsChunksRef.current = splitSpeakChunks(clean);
+      ttsIdxRef.current = startIndex;
+    }
+
+    const chunks = Array.isArray(ttsChunksRef.current) ? ttsChunksRef.current : [];
+    if (!chunks.length) return;
+
+    ttsQueueRef.current = chunks.slice(ttsIdxRef.current);
+    window.speechSynthesis.cancel();
+    setTtsState({ speaking: true, paused: false });
+
+    const speakNext = () => {
+      if (!ttsQueueRef.current.length) {
+        setTtsState({ speaking: false, paused: false });
+        return;
+      }
+      const part = ttsQueueRef.current.shift();
+      if (part == null) {
+        setTtsState({ speaking: false, paused: false });
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(part);
+      utterance.lang = ttsLang;
+      utterance.rate = Math.max(0.6, Math.min(1.25, Number(ttsSettings.rate) || 1));
+      utterance.pitch = Math.max(0.8, Math.min(1.2, Number(ttsSettings.pitch) || 1));
+      utterance.volume = Math.max(0, Math.min(1, Number(ttsSettings.volume) || 1));
+      const voice = pickBestVoice(ttsVoices, ttsLang, ttsSettings.voiceURI);
+      if (voice) utterance.voice = voice;
+      utterance.onend = () => {
+        ttsIdxRef.current += 1;
+        speakNext();
+      };
+      utterance.onerror = () => {
+        ttsQueueRef.current = [];
+        setTtsState({ speaking: false, paused: false });
+      };
+      window.speechSynthesis.speak(utterance);
+    };
+
+    speakNext();
+  }, [ttsLang, ttsSettings, ttsVoices, ttsStop]);
+
+  const setTtsSettingsAndApplyLive = useCallback((updater) => {
+    setTtsSettings((prev) => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      try { saveTtsSettings(next); } catch { /* ignore */ }
+
+      const shouldRestart = ttsState.speaking && !ttsState.paused && ttsLastTextRef.current;
+      if (shouldRestart) {
+        const currentIndex = Math.max(0, Number(ttsIdxRef.current) || 0);
+        setTimeout(() => {
+          ttsSpeak(ttsLastTextRef.current, { keepIndexIfSameText: true, startIndex: currentIndex });
+        }, 0);
+      }
+      return next;
+    });
+  }, [ttsSpeak, ttsState.paused, ttsState.speaking]);
+
+  const ttsTogglePlayPause = useCallback((text) => {
+    if (!('speechSynthesis' in window)) return;
+    if (ttsState.speaking && !ttsState.paused) {
+      ttsPause();
+      return;
+    }
+    if (ttsState.speaking && ttsState.paused) {
+      ttsResume();
+      return;
+    }
+    const currentIndex = Math.max(0, Number(ttsIdxRef.current) || 0);
+    ttsSpeak(text, { keepIndexIfSameText: true, startIndex: currentIndex });
+  }, [ttsPause, ttsResume, ttsSpeak, ttsState.paused, ttsState.speaking]);
+
+  useEffect(() => {
+    return () => {
+      ttsStop();
+    };
+  }, [ttsStop]);
 
   const content = lesson?.content || "محتوایی یافت نشد.";
 
   return (
     <div style={{
       minHeight: "100vh", background: `linear-gradient(160deg, ${c.dark} 0%, #1a1a2e 100%)`,
-      fontFamily: "'Vazirmatn','Segoe UI',sans-serif", padding: "clamp(14px, 2.5vw, 28px) clamp(12px, 2.8vw, 28px)",
+      fontFamily: "'Vazirmatn','Segoe UI',sans-serif",
+      padding: "clamp(14px, 2.5vw, 28px) clamp(12px, 2.8vw, 28px)",
+      paddingBottom: 120,
       display: "flex", flexDirection: "column", alignItems: "center",
     }}>
       <style>{`
@@ -3305,12 +3897,6 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
         boxShadow: "0 10px 30px rgba(0,0,0,0.5)", animation: "slideUp 0.5s ease-out",
         position: 'relative'
       }}>
-        <button onClick={() => playAudio(content)} style={{
-          background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
-          width: 44, height: 44, color: '#4ECDC4', cursor: 'pointer', fontSize: 20,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16
-        }} title="پخش صوتی">🔊</button>
-
         <h3 style={{ color: '#fff', fontSize: 'clamp(18px, 2.6vw, 24px)', marginTop: 0, marginBottom: 16, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: 10 }}>{lesson?.title || 'آموزش'}</h3>
         <div style={{
           color: '#e0e0e0', fontSize: 'clamp(15px, 1.6vw, 18px)', lineHeight: 2, textAlign: 'justify',
@@ -3344,6 +3930,221 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
       }}>
         حالا بریم ماموریت رو انجام بدیم! 🚀
       </button>
+
+      {ttsOpen && (
+        <div style={{
+          position: 'fixed',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          bottom: 92,
+          width: containerWidth,
+          maxWidth: 920,
+          zIndex: 50,
+          padding: 12,
+          borderRadius: 18,
+          background: 'rgba(20,20,30,0.92)',
+          border: '1px solid rgba(255,255,255,0.14)',
+          boxShadow: '0 18px 50px rgba(0,0,0,0.55)',
+          backdropFilter: 'blur(12px)',
+          direction: ttsIsRTL ? 'rtl' : 'ltr',
+          textAlign: ttsIsRTL ? 'right' : 'left',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ fontWeight: 900, opacity: 0.9 }}>تنظیمات صدا</div>
+            <button onClick={() => setTtsOpen(false)} style={{
+              width: 36,
+              height: 36,
+              padding: 0,
+              borderRadius: 14,
+              border: '1px solid rgba(255,255,255,0.14)',
+              background: 'rgba(255,255,255,0.06)',
+              color: '#fff',
+              cursor: 'pointer',
+              fontWeight: 900,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }} title="بستن">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6 6 18" />
+                <path d="M6 6 18 18" />
+              </svg>
+            </button>
+          </div>
+
+          <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 70px', gap: 10, alignItems: 'center' }}>
+              <div style={{ opacity: 0.85, fontWeight: 800 }}>Rate</div>
+              <input type="range" min="0.6" max="1.25" step="0.05" value={ttsSettings.rate} onChange={(e) => setTtsSettingsAndApplyLive(s => ({ ...s, rate: Number(e.target.value) }))} />
+              <div style={{ fontWeight: 900 }}>{Number(ttsSettings.rate).toFixed(2)}</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 70px', gap: 10, alignItems: 'center' }}>
+              <div style={{ opacity: 0.85, fontWeight: 800 }}>Pitch</div>
+              <input type="range" min="0.8" max="1.2" step="0.05" value={ttsSettings.pitch} onChange={(e) => setTtsSettingsAndApplyLive(s => ({ ...s, pitch: Number(e.target.value) }))} />
+              <div style={{ fontWeight: 900 }}>{Number(ttsSettings.pitch).toFixed(2)}</div>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 70px', gap: 10, alignItems: 'center' }}>
+              <div style={{ opacity: 0.85, fontWeight: 800 }}>Volume</div>
+              <input type="range" min="0" max="1" step="0.05" value={ttsSettings.volume} onChange={(e) => setTtsSettingsAndApplyLive(s => ({ ...s, volume: Number(e.target.value) }))} />
+              <div style={{ fontWeight: 900 }}>{Number(ttsSettings.volume).toFixed(2)}</div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'center' }}>
+              <div style={{ opacity: 0.85, fontWeight: 800 }}>Voice</div>
+              <select value={ttsSettings.voiceURI} onChange={(e) => setTtsSettingsAndApplyLive(s => ({ ...s, voiceURI: e.target.value }))} style={{
+                padding: 10,
+                borderRadius: 12,
+                border: '1px solid rgba(255,255,255,0.14)',
+                background: 'rgba(0,0,0,0.18)',
+                color: '#fff',
+                outline: 'none'
+              }}>
+                <option value="">Auto</option>
+                {ttsVoices
+                  .filter(v => {
+                    const vLang = String(v?.lang || '').toLowerCase();
+                    const base = String(ttsLang || '').toLowerCase().split('-')[0];
+                    return base ? vLang.startsWith(base) : true;
+                  })
+                  .map(v => (
+                    <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>
+                  ))
+                }
+              </select>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div style={{
+        position: 'fixed',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        bottom: 18,
+        width: 'min(400px, calc(100% - 24px))',
+        zIndex: 60,
+        padding: 10,
+        borderRadius: 22,
+        background: 'rgba(15,15,25,0.88)',
+        border: '1px solid rgba(255,255,255,0.14)',
+        boxShadow: '0 18px 55px rgba(0,0,0,0.60)',
+        backdropFilter: 'blur(12px)',
+        direction: ttsIsRTL ? 'rtl' : 'ltr',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+            <button onClick={() => ttsTogglePlayPause(content)} style={{
+              width: 46,
+              height: 46,
+              padding: 0,
+              background: ttsState.speaking ? 'rgba(78,205,196,0.22)' : 'rgba(255,255,255,0.10)',
+              border: '1px solid rgba(255,255,255,0.16)',
+              borderRadius: 16,
+              color: '#fff',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }} title={ttsState.speaking && !ttsState.paused ? 'مکث' : 'پخش'}>
+              {ttsState.speaking && !ttsState.paused ? (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <rect x="6" y="5" width="4" height="14" rx="1.2" />
+                  <rect x="14" y="5" width="4" height="14" rx="1.2" />
+                </svg>
+              ) : (
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5v14l12-7-12-7z" />
+                </svg>
+              )}
+            </button>
+
+            <button onClick={ttsStop} style={{
+              width: 46,
+              height: 46,
+              padding: 0,
+              background: 'rgba(255,77,77,0.18)',
+              border: '1px solid rgba(255,77,77,0.30)',
+              borderRadius: 16,
+              color: '#fff',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }} title="توقف">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <rect x="7" y="7" width="10" height="10" rx="1.4" />
+              </svg>
+            </button>
+          </div>
+
+          <div style={{
+            display: 'flex',
+            gap: 6,
+            alignItems: 'center',
+            padding: 6,
+            borderRadius: 18,
+            border: '1px solid rgba(255,255,255,0.12)',
+            background: 'rgba(0,0,0,0.16)'
+          }}>
+            {[
+              { rate: 0.7, level: 1, title: 'خیلی کند' },
+              { rate: 0.85, level: 2, title: 'کند' },
+              { rate: 1.0, level: 3, title: 'معمولی' },
+              { rate: 1.15, level: 4, title: 'تند' },
+            ].map((it) => (
+              <button key={it.rate} onClick={() => setTtsSettingsAndApplyLive(s => ({ ...s, rate: it.rate }))} style={{
+                width: 42,
+                height: 42,
+                padding: 0,
+                borderRadius: 14,
+                border: '1px solid rgba(255,255,255,0.12)',
+                background: Math.abs(Number(ttsSettings.rate) - it.rate) < 0.04 ? 'rgba(255,215,0,0.20)' : 'rgba(255,255,255,0.05)',
+                color: '#fff',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }} title={it.title}>
+                <svg width="22" height="18" viewBox="0 0 22 18" fill="none">
+                  {[1, 2, 3, 4].map((lvl) => (
+                    <rect
+                      key={lvl}
+                      x={(lvl - 1) * 5}
+                      y={18 - (lvl <= it.level ? (4 + lvl * 3) : 4)}
+                      width="3"
+                      height={lvl <= it.level ? (4 + lvl * 3) : 4}
+                      rx="1"
+                      fill={lvl <= it.level ? 'rgba(255,255,255,0.92)' : 'rgba(255,255,255,0.35)'}
+                    />
+                  ))}
+                </svg>
+              </button>
+            ))}
+          </div>
+
+          <button onClick={() => setTtsOpen(v => !v)} style={{
+            width: 46,
+            height: 46,
+            padding: 0,
+            background: ttsOpen ? 'rgba(255,215,0,0.16)' : 'rgba(255,255,255,0.06)',
+            border: '1px solid rgba(255,255,255,0.14)',
+            borderRadius: 16,
+            color: '#fff',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }} title="تنظیمات">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" />
+              <path d="M19.4 15a1.8 1.8 0 0 0 .35 1.98l.05.05a2.2 2.2 0 0 1-1.56 3.76h-.15a1.8 1.8 0 0 0-1.72 1.16 2.1 2.1 0 0 1-3.94 0 1.8 1.8 0 0 0-1.72-1.16h-.15a2.2 2.2 0 0 1-1.56-3.76l.05-.05A1.8 1.8 0 0 0 4.6 15a2.1 2.1 0 0 1 0-6 1.8 1.8 0 0 0-.35-1.98l-.05-.05A2.2 2.2 0 0 1 5.76 3.2h.15A1.8 1.8 0 0 0 7.63 2.04a2.1 2.1 0 0 1 3.94 0A1.8 1.8 0 0 0 13.29 3.2h.15a2.2 2.2 0 0 1 1.56 3.76l-.05.05A1.8 1.8 0 0 0 19.4 9a2.1 2.1 0 0 1 0 6z" />
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -3365,6 +4166,9 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
   const [authView, setAuthView] = useState('main'); // 'main' | 'forgot' | 'reset'
   const [resetToken, setResetToken] = useState('');
   const [newPassword, setNewPassword] = useState('');
+
+  const [ttsSettings, setTtsSettings] = useState(loadTtsSettings());
+  const [ttsVoices, setTtsVoices] = useState([]);
 
   useEffect(() => {
     try {
