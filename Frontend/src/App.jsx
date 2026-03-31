@@ -921,7 +921,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
 
       <div style={{ marginTop: 16, padding: 14, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
         {!course ? (
-          <div style={{ direction: 'rtl' }}>برای این درس هنوز Course ثبت نشده. ابتدا PDF را از بخش آپلود، بارگذاری کن.</div>
+          <div style={{ direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left' }}>{t('dashboard.noCourseHint')}</div>
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
@@ -3350,6 +3350,8 @@ function StudyScreen({ subject, lesson, onBack, onPlay }) {
 
 // --- AUTH SCREEN ---
 function AuthScreen({ mode, setMode, onLogin, onRegister }) {
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'fa';
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState('student'); // student | parent | teacher
@@ -3442,7 +3444,7 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
           regData.studentPassword = studentPassword;
         }
         await onRegister(regData);
-        setSuccess('ثبت‌نام موفق! حالا می‌توانید وارد شوید.');
+        setSuccess(t('auth.registerSuccess'));
         setEmail('');
         setPassword('');
         setStudentEmail('');
@@ -3459,7 +3461,7 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
     <div style={{
       minHeight: "100vh",
       background: "linear-gradient(135deg, #121212 0%, #1a1a2e 50%, #16213e 100%)",
-      fontFamily: "'Vazirmatn', sans-serif",
+      fontFamily: isRTL ? "'Vazirmatn', sans-serif" : "'Segoe UI', system-ui, -apple-system, sans-serif",
       display: "flex",
       alignItems: "center",
       justifyContent: "center",
@@ -3517,11 +3519,11 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
           fontWeight: "900",
           letterSpacing: "-0.5px"
         }}>
-          {mode === 'login' ? 'بزن بریم ماموریت' : 'سفر خود را آغاز کن'}
+          {mode === 'login' ? t('auth.loginTitle') : t('auth.registerTitle')}
         </h2>
 
         <p style={{ color: "rgba(255, 255, 255, 0.6)", marginBottom: "35px", fontSize: "16px" }}>
-          {mode === 'login' ? 'برای ادامه ماجراجویی وارد شو' : 'به دنیای یادگیری مأموریت‌ها خوش آمدی!'}
+          {mode === 'login' ? t('auth.loginSubtitle') : t('auth.registerSubtitle')}
         </p>
 
         {success && (
@@ -3556,11 +3558,11 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
 
         {(authView === 'main') && (
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-          <div style={{ textAlign: 'right' }}>
-            <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: '5px' }}>ایمیل</label>
+          <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+            <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.emailLabel')}</label>
             <input
               type="email"
-              placeholder="example@mail.com"
+              placeholder={t('auth.emailPlaceholder')}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="input-focus"
@@ -3580,8 +3582,8 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
             />
           </div>
 
-          <div style={{ textAlign: 'right' }}>
-            <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: '5px' }}>رمز عبور</label>
+          <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+            <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.passwordLabel')}</label>
             <input
               type="password"
               placeholder="••••••••"
@@ -3601,13 +3603,13 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
 
           {mode === 'register' && (
             <>
-              <div style={{ textAlign: 'right' }}>
-                <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: '5px' }}>نقش کاربر</label>
+              <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+                <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.roleLabel')}</label>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
                   {[
-                    { id: 'student', label: 'دانش‌آموز' },
-                    { id: 'parent', label: 'والدین' },
-                    { id: 'teacher', label: 'معلم' }
+                    { id: 'student', label: t('auth.roles.student') },
+                    { id: 'parent', label: t('auth.roles.parent') },
+                    { id: 'teacher', label: t('auth.roles.teacher') }
                   ].map(r => (
                     <button
                       key={r.id}
@@ -3627,7 +3629,7 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
 
               {role === 'student' && (
                 <div style={{ textAlign: 'right', animation: 'fadeSlideUp 0.3s both' }}>
-                  <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: '5px' }}>پایه تحصیلی</label>
+                  <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px', textAlign: isRTL ? 'right' : 'left' }}>{t('auth.gradeLabel')}</label>
                   <select
                     value={grade}
                     onChange={(e) => setGrade(Number(e.target.value))}
@@ -3639,7 +3641,7 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
                     }}
                   >
                     {[1, 2, 3, 4, 5, 6].map(g => (
-                      <option key={g} value={g} style={{ background: '#1a1a2e' }}>کلاس {g} (دبستان)</option>
+                      <option key={g} value={g} style={{ background: '#1a1a2e' }}>{t('auth.gradeOption', { grade: g })}</option>
                     ))}
                   </select>
                 </div>
@@ -3648,14 +3650,14 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
               {role === 'parent' && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '18px', animation: 'fadeSlideUp 0.3s both' }}>
                   <div style={{ padding: '12px', background: 'rgba(78, 205, 196, 0.05)', borderRadius: '14px', border: '1px dashed rgba(78, 205, 196, 0.3)', marginBottom: '4px' }}>
-                    <p style={{ color: '#4ECDC4', fontSize: '12px', margin: 0, textAlign: 'center' }}>اطلاعات دانش‌آموز خود را برای لینک شدن وارد کنید</p>
+                    <p style={{ color: '#4ECDC4', fontSize: '12px', margin: 0, textAlign: 'center' }}>{t('auth.parentHint')}</p>
                   </div>
                   
-                  <div style={{ textAlign: 'right' }}>
-                    <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: '5px' }}>ایمیل دانش‌آموز</label>
+                  <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+                    <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.studentEmailLabel')}</label>
                     <input
                       type="email"
-                      placeholder="student@mail.com"
+                      placeholder={t('auth.studentEmailPlaceholder')}
                       value={studentEmail}
                       onChange={(e) => setStudentEmail(e.target.value)}
                       className="input-focus"
@@ -3670,8 +3672,8 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
                     />
                   </div>
 
-                  <div style={{ textAlign: 'right' }}>
-                    <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: '5px' }}>رمز عبور دانش‌آموز</label>
+                  <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+                    <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: '13px', marginBottom: '8px', display: 'block', marginRight: isRTL ? '5px' : 0, marginLeft: isRTL ? 0 : '5px' }}>{t('auth.studentPasswordLabel')}</label>
                     <input
                       type="password"
                       placeholder="••••••••"
@@ -3707,19 +3709,19 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
             transition: "all 0.3s ease",
           }}>
             {isLoading
-              ? (mode === 'login' ? '⏳ در حال ورود...' : '⏳ در حال ثبت‌نام...')
-              : (mode === 'login' ? '🚀 بزن بریم!' : '🎉 ثبت نام و شروع')}
+              ? (mode === 'login' ? t('auth.loggingIn') : t('auth.registering'))
+              : (mode === 'login' ? t('auth.loginCta') : t('auth.registerCta'))}
           </button>
           {mode === 'login' && (
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 10 }}>
               <span
                 onClick={() => { setAuthView('forgot'); setError(''); setSuccess(''); }}
                 style={{ color: '#FFD700', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
-              >فراموشی رمز عبور</span>
+              >{t('auth.forgotPasswordLink')}</span>
               <span
                 onClick={() => { setMode('register'); setAuthView('main'); setError(''); setSuccess(''); }}
                 style={{ color: '#4ECDC4', cursor: 'pointer', fontWeight: 700, fontSize: 13 }}
-              >ثبت‌نام</span>
+              >{t('auth.registerLink')}</span>
             </div>
           )}
           </form>
@@ -3727,11 +3729,11 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
 
         {(authView === 'forgot') && (
           <form onSubmit={handleForgotPassword} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div style={{ textAlign: 'right' }}>
-              <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 8, display: 'block', marginRight: 5 }}>ایمیل</label>
+            <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+              <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 8, display: 'block', marginRight: isRTL ? 5 : 0, marginLeft: isRTL ? 0 : 5 }}>{t('auth.emailLabel')}</label>
               <input
                 type="email"
-                placeholder="example@mail.com"
+                placeholder={t('auth.emailPlaceholder')}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="input-focus"
@@ -3758,7 +3760,7 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
               fontWeight: 900,
               cursor: 'pointer',
               fontSize: 16,
-            }}>{isLoading ? '⏳ ...' : 'ارسال کد بازیابی'}</button>
+            }}>{isLoading ? '⏳ ...' : t('auth.sendResetCode')}</button>
 
             <button type="button" onClick={() => { setAuthView('main'); setError(''); setSuccess(''); }} style={{
               background: 'transparent',
@@ -3769,17 +3771,17 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
               fontWeight: 800,
               cursor: 'pointer',
               fontSize: 14,
-            }}>بازگشت</button>
+            }}>{t('auth.back')}</button>
           </form>
         )}
 
         {(authView === 'reset') && (
           <form onSubmit={handleResetPassword} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <div style={{ textAlign: 'right' }}>
-              <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 8, display: 'block', marginRight: 5 }}>توکن بازیابی</label>
+            <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+              <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 8, display: 'block', marginRight: isRTL ? 5 : 0, marginLeft: isRTL ? 0 : 5 }}>{t('auth.resetTokenLabel')}</label>
               <input
                 type="text"
-                placeholder="توکن را وارد کنید"
+                placeholder={t('auth.resetTokenPlaceholder')}
                 value={resetToken}
                 onChange={(e) => setResetToken(e.target.value)}
                 className="input-focus"
@@ -3798,8 +3800,8 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
               />
             </div>
 
-            <div style={{ textAlign: 'right' }}>
-              <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 8, display: 'block', marginRight: 5 }}>رمز جدید</label>
+            <div style={{ textAlign: isRTL ? 'right' : 'left' }}>
+              <label style={{ color: 'rgba(255,255,255,0.8)', fontSize: 13, marginBottom: 8, display: 'block', marginRight: isRTL ? 5 : 0, marginLeft: isRTL ? 0 : 5 }}>{t('auth.newPasswordLabel')}</label>
               <input
                 type="password"
                 placeholder="••••••••"
@@ -3830,7 +3832,7 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
               fontWeight: 900,
               cursor: 'pointer',
               fontSize: 16,
-            }}>{isLoading ? '⏳ ...' : 'تغییر رمز عبور'}</button>
+            }}>{isLoading ? '⏳ ...' : t('auth.changePassword')}</button>
 
             <button type="button" onClick={() => { setAuthView('main'); setError(''); setSuccess(''); }} style={{
               background: 'transparent',
@@ -3841,13 +3843,13 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
               fontWeight: 800,
               cursor: 'pointer',
               fontSize: 14,
-            }}>بازگشت</button>
+            }}>{t('auth.back')}</button>
           </form>
         )}
 
         {authView === 'main' && (
           <p style={{ color: "rgba(255,255,255,0.5)", marginTop: "30px", fontSize: "15px" }}>
-            {mode === 'login' ? 'هنوز عضو نشدی؟ ' : 'قبلاً ثبت‌نام کردی؟ '}
+            {mode === 'login' ? t('auth.noAccount') : t('auth.haveAccount')}
             <span
               onClick={() => {
                 setMode(mode === 'login' ? 'register' : 'login');
@@ -3863,7 +3865,7 @@ function AuthScreen({ mode, setMode, onLogin, onRegister }) {
                 paddingLeft: "5px"
               }}
             >
-              {mode === 'login' ? 'عضو شو' : 'وارد شو'}
+              {mode === 'login' ? t('auth.signUp') : t('auth.signIn')}
             </span>
           </p>
         )}
