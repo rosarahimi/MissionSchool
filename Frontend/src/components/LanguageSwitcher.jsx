@@ -7,7 +7,14 @@ export function LanguageSwitcher({ style = {} }) {
   const toggleLanguage = () => {
     const newLang = currentLang === 'fa' ? 'en' : 'fa';
     i18n.changeLanguage(newLang);
-    document.dir = newLang === 'fa' ? 'rtl' : 'ltr';
+    const dir = newLang === 'fa' ? 'rtl' : 'ltr';
+    document.dir = dir;
+    document.documentElement.dir = dir;
+    document.documentElement.lang = newLang;
+    document.body.style.direction = dir;
+    document.body.style.fontFamily = newLang === 'fa'
+      ? "'Vazirmatn','Segoe UI',sans-serif"
+      : "'Segoe UI', system-ui, -apple-system, sans-serif";
     localStorage.setItem('i18nLanguage', newLang);
   };
 

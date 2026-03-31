@@ -55,6 +55,8 @@ const BADGES = [
 
 // ─── Live Clock Component ────────────────────────────────────────────────
 function LiveClock() {
+  const { i18n } = useTranslation();
+  const isRTL = i18n.language === 'fa';
   const [time, setTime] = useState(new Date());
 
   useEffect(() => {
@@ -62,12 +64,14 @@ function LiveClock() {
     return () => clearInterval(timer);
   }, []);
 
-  const shamsiDate = new Intl.DateTimeFormat('fa-IR', {
-    calendar: 'persian',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  }).format(time);
+  const shamsiDate = isRTL
+    ? new Intl.DateTimeFormat('fa-IR', {
+        calendar: 'persian',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      }).format(time)
+    : null;
 
   const miladiDate = new Intl.DateTimeFormat('en-US', {
     year: 'numeric',
@@ -75,25 +79,37 @@ function LiveClock() {
     day: 'numeric'
   }).format(time);
 
-  const weekday = new Intl.DateTimeFormat('fa-IR', { weekday: 'long' }).format(time);
-  const timeStr = time.toLocaleTimeString('fa-IR', { 
-    hour: '2-digit', 
+  const weekday = new Intl.DateTimeFormat(isRTL ? 'fa-IR' : 'en-US', { weekday: 'long' }).format(time);
+  const timeStr = time.toLocaleTimeString(isRTL ? 'fa-IR' : 'en-US', {
+    hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false 
+    hour12: false
   });
 
   return (
     <div style={{
-      position: 'absolute', top: '24px', left: '24px', textAlign: 'left',
-      color: 'rgba(255,255,255,0.7)', fontFamily: "'Vazirmatn', sans-serif",
+      position: 'absolute',
+      top: '24px',
+      ...(isRTL ? { left: '24px', right: 'auto', textAlign: 'left' } : { right: '24px', left: 'auto', textAlign: 'right' }),
+      color: 'rgba(255,255,255,0.7)',
+      fontFamily: isRTL ? "'Vazirmatn', sans-serif" : "'Segoe UI', system-ui, -apple-system, sans-serif",
       zIndex: 10, pointerEvents: 'none', animation: 'fadeSlide 0.8s both'
     }}>
       <div style={{ fontSize: '26px', fontWeight: '900', color: '#fff', marginBottom: '6px', letterSpacing: '1px' }}>
         {timeStr}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', borderLeft: '2px solid rgba(78,205,196,0.3)', paddingLeft: '10px' }}>
-        <div style={{ fontSize: '13px', fontWeight: '600', color: 'rgba(255,255,255,0.9)' }}>{shamsiDate}</div>
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px',
+        ...(isRTL
+          ? { borderLeft: '2px solid rgba(78,205,196,0.3)', paddingLeft: '10px' }
+          : { borderRight: '2px solid rgba(78,205,196,0.3)', paddingRight: '10px' })
+      }}>
+        {isRTL && (
+          <div style={{ fontSize: '13px', fontWeight: '600', color: 'rgba(255,255,255,0.9)' }}>{shamsiDate}</div>
+        )}
         <div style={{ fontSize: '11px', opacity: 0.6, fontWeight: '500' }}>{miladiDate}</div>
         <div style={{ fontSize: '12px', fontWeight: '700', color: '#4ECDC4', marginTop: '2px' }}>
           {weekday}
@@ -104,6 +120,7 @@ function LiveClock() {
 }
 
 function GlobalStyles() {
+  const { i18n } = useTranslation();
   return (
     <style>{`
       :root {
@@ -133,12 +150,19 @@ function GlobalStyles() {
         border: 2px solid rgba(0,0,0,0);
         background-clip: padding-box;
       }
+      html, body {
+        direction: ${i18n.language === 'fa' ? 'rtl' : 'ltr'};
+        font-family: ${i18n.language === 'fa'
+          ? "'Vazirmatn','Segoe UI',sans-serif"
+          : "'Segoe UI', system-ui, -apple-system, sans-serif"};
+      }
     `}</style>
   );
 }
 
 function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
+  const isRTL = i18n.language === 'fa';
   const [grade, setGrade] = useState(3);
   const [subject, setSubject] = useState('persian');
   const [loading, setLoading] = useState(true);
@@ -639,7 +663,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
     return (
       <div style={{ minHeight: '100vh', padding: 24, background: '#0f1220', color: '#fff', fontFamily: "'Vazirmatn','Segoe UI',sans-serif" }}>
         <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 22, cursor: 'pointer' }}>← {t('nav.back')}</button>
-        <div style={{ marginTop: 20, direction: 'rtl' }}>{t('dashboard.accessDenied')}</div>
+        <div style={{ marginTop: 20, direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left' }}>{t('dashboard.accessDenied')}</div>
       </div>
     );
   }
@@ -683,23 +707,23 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
             color: '#fff'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-              <div style={{ direction: 'rtl', fontWeight: 900 }}>{t('dashboard.courseManager')}</div>
+              <div style={{ direction: isRTL ? 'rtl' : 'ltr', fontWeight: 900, textAlign: isRTL ? 'right' : 'left' }}>{t('dashboard.courseManager')}</div>
               <button onClick={() => setShowCourseManager(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>{t('nav.close')}</button>
             </div>
 
             <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
-              <div style={{ direction: 'rtl', fontWeight: 900 }}>{t('dashboard.addCourse')}</div>
+              <div style={{ direction: isRTL ? 'rtl' : 'ltr', fontWeight: 900, textAlign: isRTL ? 'right' : 'left' }}>{t('dashboard.addCourse')}</div>
               <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '110px 1fr', gap: 10, alignItems: 'center' }}>
-                <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>{t('dashboard.grade')}</div>
+                <div style={{ direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left', opacity: 0.85, fontWeight: 800 }}>{t('dashboard.grade')}</div>
                 <input type="number" value={newCourseGrade} onChange={(e) => setNewCourseGrade(Number(e.target.value))} style={{ padding: 10, borderRadius: 10 }} />
 
-                <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>{t('dashboard.subject')}</div>
+                <div style={{ direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left', opacity: 0.85, fontWeight: 800 }}>{t('dashboard.subject')}</div>
                 <select value={newCourseSubject} onChange={(e) => setNewCourseSubject(e.target.value)} style={{ padding: 10, borderRadius: 10 }}>
                   {SUBJECTS.map(s => <option key={s.id} value={s.id}>{t(s.labelKey)}</option>)}
                 </select>
 
-                <div style={{ direction: 'rtl', opacity: 0.85, fontWeight: 800 }}>{t('dashboard.courseTitle')}</div>
-                <input value={newCourseTitle} onChange={(e) => setNewCourseTitle(e.target.value)} style={{ padding: 10, borderRadius: 10, direction: 'rtl' }} />
+                <div style={{ direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left', opacity: 0.85, fontWeight: 800 }}>{t('dashboard.courseTitle')}</div>
+                <input value={newCourseTitle} onChange={(e) => setNewCourseTitle(e.target.value)} style={{ padding: 10, borderRadius: 10, direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 12 }}>
                 <button onClick={createCourse} disabled={busyKey === 'course-create'} style={{ padding: '10px 14px', borderRadius: 10, border: 'none', cursor: 'pointer', fontWeight: 900 }}>
@@ -709,9 +733,9 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
             </div>
 
             <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)' }}>
-              <div style={{ direction: 'rtl', fontWeight: 900 }}>{t('dashboard.courseList')}</div>
+              <div style={{ direction: isRTL ? 'rtl' : 'ltr', fontWeight: 900, textAlign: isRTL ? 'right' : 'left' }}>{t('dashboard.courseList')}</div>
               {allCourses.length === 0 ? (
-                <div style={{ marginTop: 10, direction: 'rtl', opacity: 0.8 }}>{t('dashboard.noCourses')}</div>
+                <div style={{ marginTop: 10, direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left', opacity: 0.8 }}>{t('dashboard.noCourses')}</div>
               ) : (
                 <div style={{ marginTop: 10, display: 'grid', gridTemplateColumns: '1fr', gap: 10 }}>
                   {allCourses.map(c => (
@@ -728,7 +752,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
                           setShowCourseManager(false);
                         }} style={{
                           background: 'none', border: 'none', cursor: 'pointer',
-                          color: '#fff', fontWeight: 900, direction: 'rtl', textAlign: 'right', padding: 0
+                          color: '#fff', fontWeight: 900, direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left', padding: 0
                         }}>
                           {t('dashboard.grade')} {c.grade} — {t(SUBJECTS.find(s => s.id === c.subject)?.labelKey || c.subject)}
                           {c.title ? ` | ${c.title}` : ''}
@@ -751,7 +775,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
       )}
 
       {statusMessage && (
-        <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,77,77,0.12)', border: '1px solid rgba(255,77,77,0.25)', direction: 'rtl' }}>
+        <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,77,77,0.12)', border: '1px solid rgba(255,77,77,0.25)', direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left' }}>
           {statusMessage}
         </div>
       )}
@@ -774,12 +798,12 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
             color: '#fff'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center' }}>
-              <div style={{ direction: 'rtl', fontWeight: 900 }}>{t('dashboard.pdfUpload')}</div>
+              <div style={{ direction: isRTL ? 'rtl' : 'ltr', fontWeight: 900, textAlign: isRTL ? 'right' : 'left' }}>{t('dashboard.pdfUpload')}</div>
               <button onClick={() => setShowPdfUpload(false)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer' }}>{t('nav.close')}</button>
             </div>
 
             {course?.pdf?.filename && (
-              <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', direction: 'rtl' }}>
+              <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left' }}>
                 <div style={{ fontWeight: 900 }}>{t('dashboard.currentFile')}</div>
                 <div style={{ marginTop: 6, opacity: 0.85 }}>{course.pdf.filename}</div>
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
@@ -807,7 +831,7 @@ function DashboardScreen({ token, user, SUBJECTS, api, onBack }) {
               background: 'rgba(255,215,0,0.05)'
             }}>
               <div style={{ fontSize: 34 }}>{dashboardPdfFile ? '📄' : '📁'}</div>
-              <div style={{ direction: 'rtl', marginTop: 6, opacity: 0.9 }}>
+              <div style={{ direction: isRTL ? 'rtl' : 'ltr', textAlign: isRTL ? 'right' : 'left', marginTop: 6, opacity: 0.9 }}>
                 {dashboardPdfFile ? dashboardPdfFile.name : t('dashboard.selectPdf')}
               </div>
               <input ref={dashboardPdfRef} type="file" accept="application/pdf" onChange={(e) => {
@@ -1389,7 +1413,14 @@ export default function App() {
   useEffect(() => {
     const savedLang = localStorage.getItem('i18nLanguage') || 'en';
     i18n.changeLanguage(savedLang).then(() => {
-      document.dir = savedLang === 'fa' ? 'rtl' : 'ltr';
+      const dir = savedLang === 'fa' ? 'rtl' : 'ltr';
+      document.dir = dir;
+      document.documentElement.dir = dir;
+      document.documentElement.lang = savedLang;
+      document.body.style.direction = dir;
+      document.body.style.fontFamily = savedLang === 'fa'
+        ? "'Vazirmatn','Segoe UI',sans-serif"
+        : "'Segoe UI', system-ui, -apple-system, sans-serif";
       setLangReady(true);
     });
   }, [i18n]);
@@ -2035,6 +2066,7 @@ function GameScreen({
   dragWords, setDragWords, selectedWords, setSelectedWords,
   fillVal, setFillVal, onAnswer, onNext, showStageComplete,
 }) {
+  const { t, i18n } = useTranslation();
   const c = subject?.color || COLORS.persian;
   const dragRef = useRef(null); // { from: 'available'|'selected', index: number }
   const progress = (missionIdx / totalMissions) * 100;
@@ -2225,8 +2257,8 @@ function GameScreen({
             transition: "width 0.5s ease", borderRadius: 10,
           }} />
         </div>
-        <div style={{ color: "#aaa", fontSize: 11, marginTop: 4, direction: "rtl" }}>
-          ماموریت {missionIdx + 1} از {totalMissions} | مرحله {stage}
+        <div style={{ color: "#aaa", fontSize: 11, marginTop: 4, direction: i18n.language === 'fa' ? 'rtl' : 'ltr' }}>
+          {t('game.missionOf', { mission: missionIdx + 1, total: totalMissions, stage: stage })}
         </div>
 
         {/* Stage dots */}
@@ -2256,7 +2288,7 @@ function GameScreen({
           <div style={{ marginBottom: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
               <span style={{ color: timerColor, fontWeight: 700, fontSize: 13 }}>⏱ {timeLeft}s</span>
-              <span style={{ color: "#aaa", fontSize: 12 }}>سریع‌تر = ستاره بیشتر ⭐⭐⭐</span>
+              <span style={{ color: "#aaa", fontSize: 12 }}>{t('game.fasterEqualsMoreStars')}</span>
             </div>
             <div style={{ background: "rgba(255,255,255,0.1)", borderRadius: 8, height: 6 }}>
               <div style={{
@@ -2274,7 +2306,7 @@ function GameScreen({
             background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
             width: 44, height: 44, color: '#FFD700', cursor: 'pointer', fontSize: 20, flexShrink: 0,
             display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'transform 0.2s',
-          }} title="با صدای بلند بخوان">🔊</button>
+          }} title={t('game.readAloud')}>🔊</button>
           <div style={{
             color: "#fff", fontWeight: 700, fontSize: 17,
             direction: subject?.dir || "rtl", lineHeight: 1.6,
@@ -2315,7 +2347,7 @@ function GameScreen({
                   justifyContent: 'center',
                   flexShrink: 0,
                 }}>
-                  {["۱", "۲", "۳", "۴"][i]}
+                  {["1", "2", "3", "4"][i]}
                 </span>
                 <span style={{ flex: 1 }}>
                   {opt}
@@ -2329,13 +2361,13 @@ function GameScreen({
         {mission.type === "fill" && !feedback && (
           <div style={{ direction: subject?.dir }}>
             <div style={{ color: "#aaa", fontSize: 13, marginBottom: 8, direction: subject?.dir }}>
-              💡 راهنما: {mission.hint}
+              💡 {t('game.hint')}: {mission.hint}
             </div>
             <div style={{ display: "flex", gap: 10 }}>
               <input
                 value={fillVal} onChange={e => setFillVal(e.target.value)}
                 onKeyDown={e => e.key === "Enter" && fillVal.trim() && onAnswer(fillVal)}
-                placeholder="جواب را بنویس..."
+                placeholder={t('game.typeAnswer')}
                 style={{
                   flex: 1, padding: "14px 16px",
                   background: "rgba(255,255,255,0.1)", border: "2px solid rgba(255,255,255,0.2)",
@@ -2364,7 +2396,7 @@ function GameScreen({
               padding: "10px 12px", marginBottom: 12,
               display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center",
             }} onDragOver={allowDrop} onDrop={(e) => dropToSelected(e, null)}>
-              {selectedWords.length === 0 && <span style={{ color: "#555", fontSize: 13 }}>کلمات را اینجا بچین...</span>}
+              {selectedWords.length === 0 && <span style={{ color: "#555", fontSize: 13 }}>{t('game.arrangeWordsHere')}</span>}
               {selectedWords.map((w, i) => (
                 <button
                   key={i}
@@ -2404,7 +2436,7 @@ function GameScreen({
                 background: `linear-gradient(135deg,${c.bg},${c.dark})`,
                 border: "none", borderRadius: 16, color: "#fff",
                 fontSize: 16, fontWeight: 800, cursor: "pointer",
-              }}>✓ تأیید جواب</button>
+              }}>{t('game.confirmAnswer')}</button>
             )}
           </div>
         )}
@@ -2446,13 +2478,13 @@ function GameScreen({
               <div style={{ fontSize: 42 }}>
                 {feedback.correct ? "🎉" : feedback.timeout ? "⏰" : "😅"}
               </div>
-              <div style={{ fontWeight: 900, fontSize: 20, color: feedback.correct ? "#2ECC71" : "#E74C3C", direction: "rtl" }}>
-                {feedback.correct ? "عالی بود!" : feedback.timeout ? "وقت تموم شد!" : "اشتباه!"}
+              <div style={{ fontWeight: 900, fontSize: 20, color: feedback.correct ? "#2ECC71" : "#E74C3C", direction: i18n.language === 'fa' ? 'rtl' : 'ltr' }}>
+                {feedback.correct ? t('game.excellent') : feedback.timeout ? t('game.timeUp') : t('game.incorrect')}
               </div>
               {feedback.correct && <StarBurst count={feedback.stars} />}
               {(String(feedback.exp || '').trim() || !feedback.correct) && (
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gap: '8px', marginTop: 10, direction: 'rtl' }}>
-                  <button onClick={() => playAudio(String(feedback.exp || '').trim() || 'پاسخ صحیح را ببین')} title="پخش توضیح" style={{
+                  <button onClick={() => playAudio(String(feedback.exp || '').trim() || t('game.seeCorrectAnswer'))} title={t('game.playExplanation')} style={{
                     background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%',
                     width: 32, height: 32, color: '#4ECDC4', cursor: 'pointer', fontSize: 16, flexShrink: 0,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -2463,7 +2495,7 @@ function GameScreen({
                     )}
                     {(!feedback.correct || feedback.timeout) && (
                       <div style={{ fontWeight: 900, color: '#fff' }}>
-                        پاسخ صحیح: {mission?.type === 'fill' ? mission?.blank : mission?.type === 'order' ? mission?.answer : ''}
+                        {t('game.correctAnswer')}: {mission?.type === 'fill' ? mission?.blank : mission?.type === 'order' ? mission?.answer : ''}
                       </div>
                     )}
                   </div>
@@ -2478,7 +2510,7 @@ function GameScreen({
               fontSize: 17, fontWeight: 800, cursor: "pointer",
               boxShadow: `0 8px 24px ${c.bg}44`,
             }}>
-              {missionIdx + 1 >= 8 ? "🏁 پایان درس" : "ماموریت بعدی ←"}
+              {missionIdx + 1 >= 8 ? t('game.endOfLesson') : t('game.nextMission')}
             </button>
           </div>
         )}
@@ -2582,6 +2614,7 @@ function SummaryScreen({ subject, stars, score, missions, onHome, completedSubje
 
 // ─── BADGE HALL ───────────────────────────────────────────────────────────
 function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBadges, gameStats, completedSubjects, onBack, onLogout, api, SUBJECTS }) {
+  const { t, i18n } = useTranslation();
   const [tab, setTab] = useState(initialTab || 'badges'); // 'badges' | 'profile' | 'results'
   const [editName, setEditName] = useState(user?.name || '');
   const [isUpdating, setIsUpdating] = useState(false);
@@ -2885,7 +2918,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
         )}
 
         {tab === 'profile' && (
-          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'fadeSlide 0.4s both', direction: 'rtl', padding: '10px 0 20px' }}>
+          <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', animation: 'fadeSlide 0.4s both', direction: i18n.language === 'fa' ? 'rtl' : 'ltr', padding: '10px 0 20px' }}>
             <div style={{
               width: '80px', height: '80px', borderRadius: '50%',
               background: 'linear-gradient(135deg, #4ECDC4, #556270)',
@@ -2896,17 +2929,17 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
               {user?.email ? user.email.charAt(0).toUpperCase() : '👤'}
             </div>
             
-            <h3 style={{ color: '#fff', fontSize: 24, margin: '0 0 8px 0', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>پروفایل فضانورد</h3>
+            <h3 style={{ color: '#fff', fontSize: 24, margin: '0 0 8px 0', textShadow: '0 2px 4px rgba(0,0,0,0.5)' }}>{t('profile.astronautProfile')}</h3>
             
             <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 20, padding: 20, width: '100%', maxWidth: 360, marginBottom: 24 }}>
               <div style={{ marginBottom: 20 }}>
-                <label style={{ display: 'block', color: '#aaa', fontSize: 13, marginBottom: 8, marginRight: 5 }}>نام نمایشی:</label>
+                <label style={{ display: 'block', color: '#aaa', fontSize: 13, marginBottom: 8, marginRight: 5 }}>{t('profile.displayName')}:</label>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <input 
                     type="text" 
                     value={editName} 
                     onChange={(e) => setEditName(e.target.value)}
-                    placeholder="نام خود را وارد کنید..."
+                    placeholder={t('profile.enterName')}
                     style={{
                       flex: 1, padding: '12px 16px', borderRadius: 14,
                       background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
@@ -2921,31 +2954,31 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
                       color: '#fff', fontWeight: 'bold', cursor: 'pointer', opacity: isUpdating ? 0.6 : 1
                     }}
                   >
-                    {isUpdating ? '...' : 'ثبت'}
+                    {isUpdating ? '...' : t('profile.save')}
                   </button>
                 </div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
-                <span style={{ color: '#aaa', fontSize: 14 }}>ایمیل شما:</span>
-                <span style={{ color: '#fff', fontSize: 14, fontWeight: 'bold', direction: 'ltr' }}>{user?.email || 'نامشخص'}</span>
+                <span style={{ color: '#aaa', fontSize: 14 }}>{t('profile.yourEmail')}:</span>
+                <span style={{ color: '#fff', fontSize: 14, fontWeight: 'bold', direction: 'ltr' }}>{user?.email || t('profile.unknown')}</span>
               </div>
               
               {user?.role === 'parent' && user?.linkedStudent && (
                 <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 16 }}>
-                  <p style={{ color: '#4ECDC4', fontSize: 13, fontWeight: 'bold', marginBottom: 12 }}>🔗 اکانت لینک شده (فرزند):</p>
+                  <p style={{ color: '#4ECDC4', fontSize: 13, fontWeight: 'bold', marginBottom: 12 }}>🔗 {t('profile.linkedAccount')} ({t('profile.child')}):</p>
                   <div style={{ background: 'rgba(0,0,0,0.2)', borderRadius: 12, padding: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ color: '#aaa', fontSize: 12 }}>نام دانش‌آموز:</span>
-                      <span style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>{user.linkedStudent.name || 'بدون نام'}</span>
+                      <span style={{ color: '#aaa', fontSize: 12 }}>{t('profile.studentName')}:</span>
+                      <span style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>{user.linkedStudent.name || t('profile.noName')}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                      <span style={{ color: '#aaa', fontSize: 12 }}>ایمیل:</span>
+                      <span style={{ color: '#aaa', fontSize: 12 }}>{t('profile.email')}:</span>
                       <span style={{ color: '#fff', fontSize: 13, direction: 'ltr' }}>{user.linkedStudent.email}</span>
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span style={{ color: '#aaa', fontSize: 12 }}>پایه تحصیلی:</span>
-                      <span style={{ color: '#FFD700', fontSize: 13 }}>کلاس {user.linkedStudent.grade}</span>
+                      <span style={{ color: '#aaa', fontSize: 12 }}>{t('profile.grade')}:</span>
+                      <span style={{ color: '#FFD700', fontSize: 13 }}>{t('profile.class')} {user.linkedStudent.grade}</span>
                     </div>
                   </div>
                 </div>
@@ -2954,33 +2987,33 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
               {user?.role === 'student' && (
                 <div style={{ marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: 16 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16, alignItems: 'center' }}>
-                    <span style={{ color: '#aaa', fontSize: 14 }}>پایه تحصیلی:</span>
-                    <span style={{ color: '#4ECDC4', fontSize: 14, fontWeight: 'bold', background: 'rgba(78,205,196,0.1)', padding: '4px 10px', borderRadius: 8 }}>کلاس {user.grade} (دبستان)</span>
+                    <span style={{ color: '#aaa', fontSize: 14 }}>{t('profile.grade')}:</span>
+                    <span style={{ color: '#4ECDC4', fontSize: 14, fontWeight: 'bold', background: 'rgba(78,205,196,0.1)', padding: '4px 10px', borderRadius: 8 }}>{t('profile.class')} {user.grade} ({t('profile.elementary')})</span>
                   </div>
                   
                   {user?.linkedParent ? (
                     <div style={{ background: 'rgba(39, 174, 96, 0.1)', borderRadius: 12, padding: 12, border: '1px solid rgba(39, 174, 96, 0.3)' }}>
-                      <p style={{ color: '#27AE60', fontSize: 13, fontWeight: 'bold', marginBottom: 12 }}>🔗 اکانت والد لینک شده:</p>
+                      <p style={{ color: '#27AE60', fontSize: 13, fontWeight: 'bold', marginBottom: 12 }}>🔗 {t('profile.linkedParentAccount')}:</p>
                       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <span style={{ color: '#aaa', fontSize: 12 }}>نام والد:</span>
-                        <span style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>{user.linkedParent.name || 'بدون نام'}</span>
+                        <span style={{ color: '#aaa', fontSize: 12 }}>{t('profile.parentName')}:</span>
+                        <span style={{ color: '#fff', fontSize: 13, fontWeight: 'bold' }}>{user.linkedParent.name || t('profile.noName')}</span>
                       </div>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ color: '#aaa', fontSize: 12 }}>ایمیل والد:</span>
+                        <span style={{ color: '#aaa', fontSize: 12 }}>{t('profile.parentEmail')}:</span>
                         <span style={{ color: '#fff', fontSize: 13, direction: 'ltr' }}>{user.linkedParent.email}</span>
                       </div>
                     </div>
                   ) : (
                     <div style={{ background: 'rgba(231, 76, 60, 0.1)', borderRadius: 12, padding: 12, border: '1px solid rgba(231, 76, 60, 0.3)' }}>
-                      <p style={{ color: '#E74C3C', fontSize: 13, fontWeight: 'bold', margin: 0 }}>⚠️ اکانت والد به شما متصل نیست</p>
+                      <p style={{ color: '#E74C3C', fontSize: 13, fontWeight: 'bold', margin: 0 }}>⚠️ {t('profile.parentNotLinked')}</p>
                     </div>
                   )}
                 </div>
               )}
 
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12 }}>
-                <span style={{ color: '#aaa', fontSize: 14 }}>{user?.role === 'parent' ? 'وضعیت کل فرزند:' : 'وضعیت ماموریت‌ها:'}</span>
-                <span style={{ color: '#FFD700', fontSize: 14, fontWeight: 'bold' }}>{completedSubjects.length} درس کامل شده</span>
+                <span style={{ color: '#aaa', fontSize: 14 }}>{user?.role === 'parent' ? t('profile.childOverallStatus') : t('profile.missionStatus')}:</span>
+                <span style={{ color: '#FFD700', fontSize: 14, fontWeight: 'bold' }}>{completedSubjects.length} {t('profile.lessonsCompleted')}</span>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'center', marginTop: 16, marginBottom: 8 }}>
@@ -2999,7 +3032,7 @@ function BadgeHall({ initialTab, initialSubject, user, setUser, token, earnedBad
               color: '#ff4d4d', padding: '12px 32px', borderRadius: '16px', cursor: 'pointer',
               fontWeight: 'bold', fontSize: '15px', transition: 'all 0.2s', display: 'flex', gap: 10, alignItems: 'center'
             }}>
-              <span>خروج از حساب کاربری</span>
+              <span>{t('profile.logout')}</span>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                 <polyline points="16 17 21 12 16 7"></polyline>
