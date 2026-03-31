@@ -36,6 +36,404 @@ function shuffle(arr) {
   return a;
 }
 
+function AdminDashboardScreen({ token, user, api, onBack }) {
+  const { i18n } = useTranslation();
+  const isRTL = i18n.language === 'fa';
+  const [q, setQ] = useState('');
+  const [role, setRole] = useState('');
+  const [grade, setGrade] = useState('');
+  const [status, setStatus] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [users, setUsers] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [selectedId, setSelectedId] = useState('');
+  const [details, setDetails] = useState(null);
+  const [reports, setReports] = useState([]);
+  const [tempPassword, setTempPassword] = useState('');
+  const [error, setError] = useState('');
+
+  const canView = user?.role === 'admin';
+
+  const fmtDateTime = useCallback((d) => {
+    if (!d) return '-';
+    try {
+      return new Intl.DateTimeFormat(isRTL ? 'fa-IR' : 'en-US', {
+        year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit'
+      }).format(new Date(d));
+    } catch {
+      return String(d);
+    }
+  }, [isRTL]);
+
+  const loadUsers = useCallback(async () => {
+    if (!token || !canView) return;
+    setBusy(true);
+    setError('');
+    try {
+      const res = await api.adminListUsers(token, {
+        q: q.trim() || undefined,
+        role: role || undefined,
+        grade: grade === '' ? undefined : grade,
+        status: status || undefined,
+        limit: 80,
+        skip: 0,
+      });
+      if (!res?.ok) {
+        setError(res?.message || 'خطا در دریافت کاربران');
+        return;
+      }
+      setUsers(Array.isArray(res.users) ? res.users : []);
+      setTotal(Number(res.total) || 0);
+    } finally {
+      setBusy(false);
+    }
+  }, [token, canView, api, q, role, grade, status]);
+
+  const loadUserDetails = useCallback(async (id) => {
+    if (!token || !canView || !id) return;
+    setBusy(true);
+    setError('');
+    setTempPassword('');
+    try {
+      const res = await api.adminGetUser(token, id);
+      if (!res?.ok) {
+        setError(res?.message || 'خطا در دریافت جزئیات کاربر');
+        return;
+      }
+      setDetails(res.user || null);
+      setReports(Array.isArray(res.reports) ? res.reports : []);
+    } finally {
+      setBusy(false);
+    }
+  }, [token, canView, api]);
+
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  useEffect(() => {
+    if (!selectedId) {
+      setDetails(null);
+      setReports([]);
+      setTempPassword('');
+      return;
+    }
+    loadUserDetails(selectedId);
+  }, [selectedId, loadUserDetails]);
+
+  const resetPassword = useCallback(async () => {
+    if (!selectedId || !token) return;
+    if (!confirm('رمز عبور این کاربر ریست شود؟')) return;
+    setBusy(true);
+    setError('');
+    setTempPassword('');
+    try {
+      const res = await api.adminResetPassword(token, selectedId);
+      if (!res?.ok) {
+        setError(res?.message || 'خطا در ریست پسورد');
+        return;
+      }
+      setTempPassword(String(res.tempPassword || ''));
+    } finally {
+      setBusy(false);
+    }
+  }, [selectedId, token, api]);
+
+  if (!canView) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        padding: '24px 14px',
+        background: 'linear-gradient(160deg, #0f172a 0%, #111827 100%)',
+        color: '#fff',
+        fontFamily: "'Vazirmatn','Segoe UI',sans-serif",
+        direction: isRTL ? 'rtl' : 'ltr',
+      }}>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#bbb', fontSize: 16, cursor: 'pointer' }}>← بازگشت</button>
+        <div style={{ marginTop: 18, opacity: 0.9, fontWeight: 900 }}>دسترسی غیرمجاز</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{
+      minHeight: '100vh',
+      padding: '24px 14px',
+      background: 'linear-gradient(160deg, #0f172a 0%, #111827 100%)',
+      color: '#fff',
+      fontFamily: "'Vazirmatn','Segoe UI',sans-serif",
+      direction: isRTL ? 'rtl' : 'ltr',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', maxWidth: 1200, margin: '0 auto 16px' }}>
+        <button onClick={onBack} style={{ background: 'none', border: 'none', color: '#bbb', fontSize: 16, cursor: 'pointer' }}>← بازگشت</button>
+        <div style={{ fontWeight: 950, fontSize: 18, opacity: 0.95 }}>داشبورد مدیریت کاربران</div>
+        <button onClick={loadUsers} style={{
+          background: 'rgba(255,255,255,0.06)',
+          border: '1px solid rgba(255,255,255,0.14)',
+          color: '#fff',
+          borderRadius: 12,
+          padding: '10px 12px',
+          cursor: 'pointer',
+          fontWeight: 900,
+        }} disabled={busy}>بروزرسانی</button>
+      </div>
+
+      <div style={{
+        maxWidth: 1200,
+        margin: '0 auto',
+        display: 'grid',
+        gridTemplateColumns: '1.15fr 0.85fr',
+        gap: 14,
+        alignItems: 'start',
+      }}>
+        <div style={{
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.10)',
+          borderRadius: 18,
+          padding: 14,
+          boxShadow: '0 18px 55px rgba(0,0,0,0.35)',
+          backdropFilter: 'blur(10px)',
+        }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 160px 140px 140px', gap: 10, alignItems: 'center' }}>
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="جستجو: ایمیل/نام" style={{
+              background: 'rgba(0,0,0,0.22)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              color: '#fff',
+              borderRadius: 12,
+              padding: '10px 12px',
+              outline: 'none',
+            }} />
+
+            <select value={role} onChange={(e) => setRole(e.target.value)} style={{
+              background: 'rgba(0,0,0,0.22)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              color: '#fff',
+              borderRadius: 12,
+              padding: '10px 12px',
+              outline: 'none',
+            }}>
+              <option value="">همه نقش‌ها</option>
+              <option value="student">دانش‌آموز</option>
+              <option value="parent">والد</option>
+              <option value="teacher">معلم</option>
+              <option value="admin">ادمین</option>
+            </select>
+
+            <select value={status} onChange={(e) => setStatus(e.target.value)} style={{
+              background: 'rgba(0,0,0,0.22)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              color: '#fff',
+              borderRadius: 12,
+              padding: '10px 12px',
+              outline: 'none',
+            }}>
+              <option value="">همه وضعیت‌ها</option>
+              <option value="active">فعال</option>
+              <option value="inactive">غیرفعال</option>
+            </select>
+
+            <select value={grade} onChange={(e) => setGrade(e.target.value)} style={{
+              background: 'rgba(0,0,0,0.22)',
+              border: '1px solid rgba(255,255,255,0.12)',
+              color: '#fff',
+              borderRadius: 12,
+              padding: '10px 12px',
+              outline: 'none',
+            }}>
+              <option value="">همه پایه‌ها</option>
+              {[1,2,3,4,5,6,7,8,9,10,11,12].map(g => (
+                <option key={g} value={String(g)}>{g}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ marginTop: 10, display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ opacity: 0.75, fontWeight: 800 }}>کاربران: {total}</div>
+            <button onClick={loadUsers} style={{
+              background: 'rgba(78,205,196,0.14)',
+              border: '1px solid rgba(78,205,196,0.22)',
+              color: '#fff',
+              borderRadius: 12,
+              padding: '10px 12px',
+              cursor: 'pointer',
+              fontWeight: 900,
+            }} disabled={busy}>اعمال فیلتر</button>
+          </div>
+
+          {error && (
+            <div style={{ marginTop: 10, color: '#ffb4b4', fontWeight: 800 }}>{error}</div>
+          )}
+
+          <div style={{ marginTop: 12, overflow: 'auto', borderRadius: 14, border: '1px solid rgba(255,255,255,0.10)' }}>
+            <div style={{ minWidth: 860 }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '240px 130px 90px 90px 160px 90px 60px',
+                gap: 10,
+                padding: '10px 12px',
+                background: 'rgba(255,255,255,0.06)',
+                fontWeight: 950,
+                fontSize: 12,
+                letterSpacing: 0.2,
+              }}>
+                <div>ایمیل</div>
+                <div>نام</div>
+                <div>نقش</div>
+                <div>پایه</div>
+                <div>آخرین ورود</div>
+                <div>گزارش‌ها</div>
+                <div>وضعیت</div>
+              </div>
+
+              {(Array.isArray(users) ? users : []).map((u) => {
+                const isSel = String(selectedId) === String(u?._id);
+                return (
+                  <button key={u._id} onClick={() => setSelectedId(String(u._id))} style={{
+                    width: '100%',
+                    textAlign: 'inherit',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    background: isSel ? 'rgba(255,215,0,0.10)' : 'transparent',
+                    color: '#fff',
+                  }}>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '240px 130px 90px 90px 160px 90px 60px',
+                      gap: 10,
+                      padding: '10px 12px',
+                      borderTop: '1px solid rgba(255,255,255,0.08)',
+                      alignItems: 'center',
+                      fontSize: 12.5,
+                    }}>
+                      <div style={{ opacity: 0.95, fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.email}</div>
+                      <div style={{ opacity: 0.85, overflow: 'hidden', textOverflow: 'ellipsis' }}>{u.name || '-'}</div>
+                      <div style={{ opacity: 0.9, fontWeight: 900 }}>{u.role}</div>
+                      <div style={{ opacity: 0.85 }}>{Number.isFinite(u.grade) ? u.grade : '-'}</div>
+                      <div style={{ opacity: 0.8 }}>{fmtDateTime(u.lastLoginAt)}</div>
+                      <div style={{ opacity: 0.9, fontWeight: 900 }}>{Number(u.reportsCount) || 0}</div>
+                      <div style={{
+                        opacity: 0.95,
+                        fontWeight: 950,
+                        color: u.isActive === false ? '#ffb4b4' : '#b6ffe6'
+                      }}>{u.isActive === false ? 'OFF' : 'ON'}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        <div style={{
+          background: 'rgba(255,255,255,0.05)',
+          border: '1px solid rgba(255,255,255,0.10)',
+          borderRadius: 18,
+          padding: 14,
+          boxShadow: '0 18px 55px rgba(0,0,0,0.35)',
+          backdropFilter: 'blur(10px)',
+          position: 'sticky',
+          top: 14,
+        }}>
+          {!details ? (
+            <div style={{ opacity: 0.75, fontWeight: 850 }}>برای مشاهده جزئیات، یک کاربر را انتخاب کن.</div>
+          ) : (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ fontWeight: 950, fontSize: 14.5, overflow: 'hidden', textOverflow: 'ellipsis' }}>{details.email}</div>
+                <button onClick={resetPassword} style={{
+                  background: 'rgba(255,77,77,0.18)',
+                  border: '1px solid rgba(255,77,77,0.30)',
+                  color: '#fff',
+                  borderRadius: 12,
+                  padding: '10px 12px',
+                  cursor: 'pointer',
+                  fontWeight: 950,
+                }} disabled={busy}>Reset Password</button>
+              </div>
+
+              {tempPassword && (
+                <div style={{
+                  marginTop: 10,
+                  padding: 12,
+                  borderRadius: 14,
+                  background: 'rgba(255,215,0,0.10)',
+                  border: '1px solid rgba(255,215,0,0.22)',
+                  fontWeight: 950,
+                }}>
+                  پسورد موقت:
+                  <div style={{ marginTop: 6, fontSize: 18, letterSpacing: 1 }}>{tempPassword}</div>
+                </div>
+              )}
+
+              <div style={{ marginTop: 12, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ padding: 10, borderRadius: 14, background: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ opacity: 0.7, fontWeight: 800, fontSize: 12 }}>Role</div>
+                  <div style={{ fontWeight: 950, marginTop: 4 }}>{details.role}</div>
+                </div>
+                <div style={{ padding: 10, borderRadius: 14, background: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ opacity: 0.7, fontWeight: 800, fontSize: 12 }}>Grade</div>
+                  <div style={{ fontWeight: 950, marginTop: 4 }}>{Number.isFinite(details.grade) ? details.grade : '-'}</div>
+                </div>
+                <div style={{ padding: 10, borderRadius: 14, background: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ opacity: 0.7, fontWeight: 800, fontSize: 12 }}>Status</div>
+                  <div style={{ fontWeight: 950, marginTop: 4, color: details.isActive === false ? '#ffb4b4' : '#b6ffe6' }}>{details.isActive === false ? 'inactive' : 'active'}</div>
+                </div>
+                <div style={{ padding: 10, borderRadius: 14, background: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ opacity: 0.7, fontWeight: 800, fontSize: 12 }}>Last login</div>
+                  <div style={{ fontWeight: 950, marginTop: 4 }}>{fmtDateTime(details.lastLoginAt)}</div>
+                </div>
+              </div>
+
+              {(details.linkedStudent || details.linkedParent) && (
+                <div style={{ marginTop: 12, padding: 12, borderRadius: 14, background: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                  <div style={{ fontWeight: 950, marginBottom: 8 }}>روابط</div>
+                  {details.linkedParent && (
+                    <div style={{ opacity: 0.85, fontWeight: 800, fontSize: 13, marginBottom: 8 }}>
+                      والد: {details.linkedParent.email}
+                    </div>
+                  )}
+                  {details.linkedStudent && (
+                    <div style={{ opacity: 0.85, fontWeight: 800, fontSize: 13 }}>
+                      دانش‌آموز مرتبط: {details.linkedStudent.email}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontWeight: 950, marginBottom: 8 }}>گزارش مأموریت‌ها</div>
+                <div style={{ maxHeight: 360, overflow: 'auto', borderRadius: 14, border: '1px solid rgba(255,255,255,0.10)' }}>
+                  {(Array.isArray(reports) ? reports : []).slice(0, 200).map((r) => (
+                    <div key={r._id} style={{
+                      padding: '10px 12px',
+                      borderTop: '1px solid rgba(255,255,255,0.08)',
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 70px 70px',
+                      gap: 10,
+                      alignItems: 'center',
+                      fontSize: 12.5,
+                    }}>
+                      <div style={{ opacity: 0.9, fontWeight: 900, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {r.subject} · {fmtDateTime(r.createdAt)}
+                      </div>
+                      <div style={{ fontWeight: 950, textAlign: 'center' }}>{r.score}</div>
+                      <div style={{ fontWeight: 950, textAlign: 'center', opacity: 0.85 }}>{r.stars || 0}</div>
+                    </div>
+                  ))}
+                  {!reports?.length && (
+                    <div style={{ padding: 12, opacity: 0.7, fontWeight: 850 }}>گزارشی ثبت نشده است.</div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function normalizeOrderText(s) {
   return String(s || '')
     .replace(/[\u200c\u200d]/g, '')
@@ -1984,6 +2382,7 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
         user={user}
         onLogout={logout}
         onDashboard={() => setScreen('dashboard')}
+        onAdmin={() => setScreen('admin')}
       />
       {screen === "chapters" && (
         <ChaptersScreen
@@ -2042,6 +2441,18 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
         token={token}
         user={user}
         SUBJECTS={SUBJECTS}
+        api={api}
+        onBack={() => setScreen('home')}
+      />
+    </>
+  );
+
+  if (screen === "admin") return (
+    <>
+      <GlobalStyles />
+      <AdminDashboardScreen
+        token={token}
+        user={user}
         api={api}
         onBack={() => setScreen('home')}
       />
@@ -2113,11 +2524,12 @@ Return ONLY valid JSON array, no markdown, no extra text.`;
 }
 
 // ─── HOME SCREEN ──────────────────────────────────────────────────────────
-function HomeScreen({ onStart, completedSubjects, gameStats, earnedBadges, onHall, user, onLogout, onDashboard }) {
+function HomeScreen({ onStart, completedSubjects, gameStats, earnedBadges, onHall, user, onLogout, onDashboard, onAdmin }) {
   const { t } = useTranslation();
   return (
     <div style={{
-      minHeight: "100vh", background: "linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)",
+      minHeight: "100vh",
+ background: "linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)",
       fontFamily: "'Vazirmatn', 'Segoe UI', sans-serif", padding: "20px", paddingBottom: "180px",
       display: "flex", flexDirection: "column", alignItems: "center", position: "relative"
     }}>
@@ -2131,10 +2543,26 @@ function HomeScreen({ onStart, completedSubjects, gameStats, earnedBadges, onHal
           padding: '10px 14px',
           borderRadius: 14,
           cursor: 'pointer',
-          fontWeight: 800,
-          marginBottom: 10,
+          fontWeight: 900,
+          marginBottom: 16,
         }}>
-          {t('nav.dashboard')}
+          {t('dashboard.title')}
+        </button>
+      )}
+
+      {user?.role === 'admin' && (
+        <button onClick={onAdmin} style={{
+          alignSelf: 'flex-start',
+          background: 'rgba(255,215,0,0.10)',
+          border: '1px solid rgba(255,215,0,0.22)',
+          color: '#fff',
+          padding: '10px 14px',
+          borderRadius: 14,
+          cursor: 'pointer',
+          fontWeight: 900,
+          marginBottom: 16,
+        }}>
+          مدیریت کاربران
         </button>
       )}
       {/* Dashboard Floating Nav Bar */}

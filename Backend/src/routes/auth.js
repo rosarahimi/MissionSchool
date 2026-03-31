@@ -83,6 +83,10 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ message: 'ایمیل یا رمز عبور اشتباه است.' });
     }
 
+    if (user.isActive === false) {
+      return res.status(403).json({ message: 'حساب کاربری غیرفعال است.' });
+    }
+
     const teacherEmails = String(process.env.TEACHER_EMAILS || '')
       .split(',')
       .map(s => s.trim().toLowerCase())
@@ -90,6 +94,10 @@ router.post('/login', async (req, res) => {
 
     if (teacherEmails.includes(String(user.email).toLowerCase()) && user.role !== 'teacher') {
       user.role = 'teacher';
+      user.lastLoginAt = new Date();
+      await user.save();
+    } else {
+      user.lastLoginAt = new Date();
       await user.save();
     }
 

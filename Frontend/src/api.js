@@ -356,3 +356,46 @@ export const getStudentResultsForTeacher = async (token, studentId) => {
   });
   return res.json();
 };
+
+export const adminListUsers = async (token, params = {}) => {
+  const qs = new URLSearchParams();
+  if (params.q) qs.set('q', String(params.q));
+  if (params.role) qs.set('role', String(params.role));
+  if (params.grade !== undefined && params.grade !== null && String(params.grade).trim() !== '') qs.set('grade', String(params.grade));
+  if (params.status) qs.set('status', String(params.status));
+  if (params.limit !== undefined && params.limit !== null) qs.set('limit', String(params.limit));
+  if (params.skip !== undefined && params.skip !== null) qs.set('skip', String(params.skip));
+
+  const url = `${API_URL}/admin/users${qs.toString() ? `?${qs.toString()}` : ''}`;
+  const res = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return res.json();
+};
+
+export const adminGetUser = async (token, userId) => {
+  const res = await fetch(`${API_URL}/admin/users/${userId}`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return res.json();
+};
+
+export const adminPatchUser = async (token, userId, payload) => {
+  const res = await fetch(`${API_URL}/admin/users/${userId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload || {}),
+  });
+  return res.json();
+};
+
+export const adminResetPassword = async (token, userId) => {
+  const res = await fetch(`${API_URL}/admin/users/${userId}/reset-password`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  return res.json();
+};

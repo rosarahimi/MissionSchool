@@ -52,10 +52,12 @@ app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 // Routes
 const authRoutes = require('./routes/auth');
 const userRoutes = require('./routes/user'); // new
+const adminRoutes = require('./routes/admin');
 const curriculumRoutes = require('./routes/curriculum');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes); // new
+app.use('/api/admin', adminRoutes);
 app.use('/api/curriculum', curriculumRoutes);
 
 app.get('/', (req, res) => {
