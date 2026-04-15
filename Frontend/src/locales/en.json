@@ -21,7 +21,7 @@
     "refresh": "🔄 Refresh",
     "courses": "📚 Courses",
     "dashboard": "🧰 Content Dashboard",
-    "profile": "👤 Profile",
+    "profile": "Profile",
     "logout": "Logout"
   },
   "auth": {
@@ -127,7 +127,21 @@
     "pages": "Pages",
     "lessons": "Lessons",
     "missionsSaved": "Missions saved",
-    "missionsCreated": "Missions created and saved"
+    "missionsCreated": "Missions created and saved",
+    "coursesCount": "Courses",
+    "manageCurriculum": "Manage curriculum →",
+    "lessonHub": "Lesson Hub",
+    "lessonsCount": "{{count}} Lessons",
+    "viewAllContent": "View all content →",
+    "newLesson": "New Lesson",
+    "chapterDefault": "Chapter",
+    "editGradeSubject": "Edit grade/subject pairs",
+    "batchExtract": "Batch extract from textbook",
+    "aiIntelligence": "AI Intelligence",
+    "provider": "Provider",
+    "active": "Active",
+    "cancel": "Cancel",
+    "lessonContent": "Lesson Content"
   },
   "home": {
     "welcomeTitle": "Adventure Learning!",
@@ -235,7 +249,10 @@
     "answerLabel": "Answer",
     "correctAnswer": "Correct answer",
     "child": "child",
-    "student": "student"
+    "student": "student",
+    "achievementsSubtitle": "Your achievements and progress",
+    "score": "Score",
+    "starsTitle": "Stars"
   },
   "study": {
     "noContent": "No lesson content found.",
@@ -262,5 +279,41 @@
     "startMission": "Start mission",
     "read": "Read",
     "missionComplete": "Mission complete"
+  },
+  "landing": {
+    "studentTitle": "Start Adventure!",
+    "studentSubtitle": "Start your missions and earn stars today!"
+  },
+  "admin": {
+    "dashboardTitle": "User Management Dashboard",
+    "unauthorized": "Unauthorized Access",
+    "refresh": "Refresh",
+    "searchPlaceholder": "Search: Email/Name",
+    "allRoles": "All Roles",
+    "allStatuses": "All Statuses",
+    "statusActive": "Active",
+    "statusInactive": "Inactive",
+    "allGrades": "All Grades",
+    "totalUsers": "Total Users:",
+    "applyFilter": "Apply Filters",
+    "colEmail": "Email",
+    "colName": "Name",
+    "colRole": "Role",
+    "colGrade": "Grade",
+    "colLastLogin": "Last Login",
+    "colReports": "Reports",
+    "colStatus": "Status",
+    "selectUserPrompt": "Select a user from the list to view details and manage.",
+    "resetPassPrompt": "Reset this user's password?",
+    "resetPassButton": "Reset Pass",
+    "newPassIssued": "New password issued:",
+    "userRelations": "User Relations",
+    "parent": "Parent:",
+    "child": "Child:",
+    "recentMissions": "Recent Mission Reports",
+    "noReports": "No reports found.",
+    "errorFetchUsers": "Error fetching users",
+    "errorFetchDetails": "Error fetching user details",
+    "errorResetPass": "Error resetting password"
   }
 }

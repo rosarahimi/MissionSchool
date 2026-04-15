@@ -176,4 +176,50 @@ router.post('/users/:id/reset-password', auth, requireAdmin, async (req, res) =>
   }
 });
 
+// ─── System Config ────────────────────────────────────────────────────────────
+const SystemConfig = require('../models/SystemConfig');
+
+async function getOrCreateConfig() {
+  let cfg = await SystemConfig.findById('global');
+  if (!cfg) {
+    cfg = new SystemConfig({ _id: 'global' });
+    await cfg.save();
+  }
+  return cfg;
+}
+
+// Admin: read current config
+router.get('/config', auth, requireAdmin, async (req, res) => {
+  try {
+    const cfg = await getOrCreateConfig();
+    res.json({ ok: true, config: cfg.toObject() });
+  } catch (err) {
+    console.error('Admin get config error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+// Admin: update config (partial patch)
+router.patch('/config', auth, requireAdmin, async (req, res) => {
+  try {
+    const cfg = await getOrCreateConfig();
+    const { ttsProvider } = req.body || {};
+
+    if (ttsProvider !== undefined) {
+      if (!['browser', 'openai'].includes(String(ttsProvider))) {
+        return res.status(400).json({ message: 'ttsProvider must be "browser" or "openai"' });
+      }
+      cfg.ttsProvider = String(ttsProvider);
+    }
+
+    cfg.updatedBy = req.user?.email || '';
+    await cfg.save();
+    res.json({ ok: true, config: cfg.toObject() });
+  } catch (err) {
+    console.error('Admin patch config error:', err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
 module.exports = router;
+

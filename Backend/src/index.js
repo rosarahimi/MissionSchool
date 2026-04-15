@@ -59,6 +59,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/user', userRoutes); // new
 app.use('/api/admin', adminRoutes);
 app.use('/api/curriculum', curriculumRoutes);
+app.use('/api/system', require('./routes/system'));
+app.use('/api/tts', require('./routes/tts'));
 
 app.get('/', (req, res) => {
   res.send('Mission School API is running...');

@@ -46,7 +46,7 @@ export const getProfile = async (token) => {
 export const updateProfile = async (token, data) => {
   const res = await fetch(`${API_URL}/user/profile/update`, {
     method: 'POST',
-    headers: { 
+    headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
@@ -58,7 +58,7 @@ export const updateProfile = async (token, data) => {
 export const updateProgress = async (token, data) => {
   const res = await fetch(`${API_URL}/user/progress`, {
     method: 'POST',
-    headers: { 
+    headers: {
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${token}`
     },
@@ -180,6 +180,39 @@ export const createCourse = async (token, payload) => {
       'Authorization': `Bearer ${token}`,
     },
     body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { error: data?.message || data?.error || `HTTP ${res.status}` };
+  return data;
+};
+
+export const getChapters = async (token, courseId) => {
+  const res = await fetch(`${API_URL}/curriculum/courses/${courseId}/chapters`, {
+    headers: { 'Authorization': `Bearer ${token}` },
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { error: data?.message || data?.error || `HTTP ${res.status}` };
+  return data;
+};
+
+export const createChapter = async (token, courseId, payload) => {
+  const res = await fetch(`${API_URL}/curriculum/courses/${courseId}/chapters`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) return { error: data?.message || data?.error || `HTTP ${res.status}` };
+  return data;
+};
+
+export const deleteChapter = async (token, chapterId) => {
+  const res = await fetch(`${API_URL}/curriculum/chapters/${chapterId}`, {
+    method: 'DELETE',
+    headers: { 'Authorization': `Bearer ${token}` },
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok) return { error: data?.message || data?.error || `HTTP ${res.status}` };
@@ -341,7 +374,7 @@ export const getTeacherResults = async (token, params = {}) => {
   if (params.grade !== undefined && params.grade !== null) qs.set('grade', String(params.grade));
   if (params.subject) qs.set('subject', params.subject);
   if (params.studentId) qs.set('studentId', params.studentId);
-  
+
   const url = `${API_URL}/user/results${qs.toString() ? `?${qs.toString()}` : ''}`;
   const res = await fetch(url, {
     headers: { 'Authorization': `Bearer ${token}` },

@@ -61,7 +61,18 @@ router.post('/register', async (req, res) => {
       linkedStudent: linkedStudentId
     });
     await user.save();
-    res.status(201).json({ message: 'User registered successfully' });
+
+    const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '7d' });
+    
+    // Sanitize user object
+    const userObj = user.toObject();
+    delete userObj.password;
+
+    res.status(201).json({ 
+      message: 'User registered successfully', 
+      token, 
+      user: userObj 
+    });
   } catch (error) {
     res.status(500).json({ error: 'خطای سرور. دوباره تلاش کنید.' });
   }
@@ -87,23 +98,44 @@ router.post('/login', async (req, res) => {
       return res.status(403).json({ message: 'حساب کاربری غیرفعال است.' });
     }
 
+    const adminEmails = String(process.env.ADMIN_EMAILS || '')
+      .split(',')
+      .map(s => s.trim().toLowerCase())
+      .filter(Boolean);
+
     const teacherEmails = String(process.env.TEACHER_EMAILS || '')
       .split(',')
       .map(s => s.trim().toLowerCase())
       .filter(Boolean);
 
-    if (teacherEmails.includes(String(user.email).toLowerCase()) && user.role !== 'teacher') {
-      user.role = 'teacher';
-      user.lastLoginAt = new Date();
-      await user.save();
-    } else {
-      user.lastLoginAt = new Date();
-      await user.save();
+    const userEmail = String(user.email).toLowerCase();
+    let roleChanged = false;
+
+    if (adminEmails.includes(userEmail)) {
+      if (user.role !== 'admin') {
+        user.role = 'admin';
+        roleChanged = true;
+      }
+    } else if (teacherEmails.includes(userEmail)) {
+      if (user.role !== 'teacher') {
+        user.role = 'teacher';
+        roleChanged = true;
+      }
     }
+
+    user.lastLoginAt = new Date();
+    await user.save();
 
     const token = jwt.sign({ id: user._id }, JWT_SECRET, { expiresIn: '7d' });
     console.log('Login successful for:', email);
-    res.json({ token, email: user.email });
+    
+    // Sanitize user object
+    const userObj = user.toObject();
+    delete userObj.password;
+    delete userObj.resetPasswordTokenHash;
+    delete userObj.resetPasswordExpiresAt;
+
+    res.json({ token, user: userObj });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ message: 'خطای سرور: ' + error.message });

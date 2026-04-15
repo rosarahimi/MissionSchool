@@ -1,19 +1,30 @@
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+@source "./";
+
+
+@theme {
+  --color-brand-primary: #4ECDC4;
+  --color-brand-secondary: #FF6B6B;
+  --color-brand-dark: #0F172A;
+  --color-brand-card: rgba(255, 255, 255, 0.05);
+
+  --font-vazir: "Vazirmatn", sans-serif;
+}
+
+
+
 /* ============================================================
    Mission School — Global Design Foundation
    Visual language: Professional × Playful × Accessible
    No emoji — all icons are SVG vectors (MsIcon family)
    ============================================================ */
 
-/* ── Fonts ───────────────────────────────────────────────── */
-@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&family=Nunito:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
-
 /* ── Reset ───────────────────────────────────────────────── */
 *,
 *::before,
 *::after {
   box-sizing: border-box;
-  margin: 0;
-  padding: 0;
 }
 
 /* ── Root Variables (fallbacks — real values set by theme.js) */
@@ -859,3 +870,67 @@ img, svg { display: block; max-width: 100%; }
   inset-inline-start: 50%;
 }
 [dir='rtl'] .ms-steps { flex-direction: row-reverse; }
+
+/* ══════════════════════════════════════════════════════════════
+   GLOBAL TEXT DIRECTION & ALIGNMENT
+   Persian (RTL) → راست‌چین · English (LTR) → چپ‌چین
+   ══════════════════════════════════════════════════════════════ */
+
+/* RTL (Persian) — راست‌چین */
+[dir='rtl'],
+[dir='rtl'] p,
+[dir='rtl'] h1,
+[dir='rtl'] h2,
+[dir='rtl'] h3,
+[dir='rtl'] h4,
+[dir='rtl'] li,
+[dir='rtl'] label,
+[dir='rtl'] span:not(.ltr-force),
+[dir='rtl'] div:not(.ltr-force) {
+  text-align: right;
+}
+
+/* LTR (English) — چپ‌چین */
+[dir='ltr'],
+[dir='ltr'] p,
+[dir='ltr'] h1,
+[dir='ltr'] h2,
+[dir='ltr'] h3,
+[dir='ltr'] h4,
+[dir='ltr'] li,
+[dir='ltr'] label,
+[dir='ltr'] span:not(.rtl-force),
+[dir='ltr'] div:not(.rtl-force) {
+  text-align: left;
+}
+
+/* Centered elements always stay centered */
+.text-center,
+[class*="text-center"] {
+  text-align: center !important;
+}
+
+/* Code/JSON blocks always LTR regardless of language */
+code, pre, textarea[dir="ltr"], .font-mono {
+  direction: ltr !important;
+  text-align: left !important;
+}
+
+/* Input fields: respect their own direction */
+input, textarea, select {
+  text-align: inherit;
+}
+
+/* RTL: inputs right-aligned */
+[dir='rtl'] input,
+[dir='rtl'] textarea,
+[dir='rtl'] select {
+  text-align: right;
+}
+
+/* LTR: inputs left-aligned */
+[dir='ltr'] input,
+[dir='ltr'] textarea,
+[dir='ltr'] select {
+  text-align: left;
+}

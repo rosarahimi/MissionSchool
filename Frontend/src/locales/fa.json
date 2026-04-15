@@ -127,7 +127,21 @@
     "pages": "صفحات",
     "lessons": "درس‌ها",
     "missionsSaved": "ماموریت‌ها ذخیره شدند",
-    "missionsCreated": "ماموریت‌ها ساخته و ذخیره شدند"
+    "missionsCreated": "ماموریت‌ها ساخته و ذخیره شدند",
+    "coursesCount": "دوره‌ها",
+    "manageCurriculum": "مدیریت برنامه درسی ←",
+    "lessonHub": "مرکز دروس",
+    "lessonsCount": "{{count}} درس",
+    "viewAllContent": "مشاهده تمام محتوا ←",
+    "newLesson": "درس جدید",
+    "chapterDefault": "فصل",
+    "editGradeSubject": "ویرایش مقطع/درس",
+    "batchExtract": "استخراج گروهی از کتاب",
+    "aiIntelligence": "هوش مصنوعی",
+    "provider": "ارائه‌دهنده",
+    "active": "فعال",
+    "cancel": "انصراف",
+    "lessonContent": "محتوای درس"
   },
   "home": {
     "welcomeTitle": "یادگیری ماجراجویانه!",
@@ -235,7 +249,10 @@
     "answerLabel": "پاسخ",
     "correctAnswer": "پاسخ صحیح",
     "child": "فرزند",
-    "student": "دانش‌آموز"
+    "student": "دانش‌آموز",
+    "achievementsSubtitle": "دستاوردها و پیشرفت شما",
+    "score": "امتیاز",
+    "starsTitle": "ستارگان"
   },
   "study": {
     "noContent": "محتوایی یافت نشد.",
@@ -262,5 +279,41 @@
     "startMission": "شروع ماموریت",
     "read": "مطالعه شده",
     "missionComplete": "ماموریت کامل"
+  },
+  "landing": {
+    "studentTitle": "شروع ماجراجویی!",
+    "studentSubtitle": "ماموریت‌هات رو شروع کن و امروز ستاره جمع کن!"
+  },
+  "admin": {
+    "dashboardTitle": "داشبورد مدیریت کاربران",
+    "unauthorized": "دسترسی غیرمجاز",
+    "refresh": "بروزرسانی",
+    "searchPlaceholder": "جستجو: ایمیل/نام",
+    "allRoles": "همه نقش‌ها",
+    "allStatuses": "همه وضعیت‌ها",
+    "statusActive": "فعال",
+    "statusInactive": "غیرفعال",
+    "allGrades": "همه پایه‌ها",
+    "totalUsers": "تعداد کل کاربران:",
+    "applyFilter": "اعمال فیلتر",
+    "colEmail": "ایمیل",
+    "colName": "نام",
+    "colRole": "نقش",
+    "colGrade": "پایه",
+    "colLastLogin": "آخرین ورود",
+    "colReports": "گزارش‌ها",
+    "colStatus": "وضعیت",
+    "selectUserPrompt": "برای مشاهده جزئیات و مدیریت، یک کاربر را از لیست انتخاب کنید.",
+    "resetPassPrompt": "رمز عبور این کاربر ریست شود؟",
+    "resetPassButton": "ریست پسورد",
+    "newPassIssued": "رمز عبور جدید صادر شد:",
+    "userRelations": "روابط کاربری",
+    "parent": "والد:",
+    "child": "فرزند:",
+    "recentMissions": "گزارش مأموریت‌های اخیر",
+    "noReports": "گزارشی یافت نشد.",
+    "errorFetchUsers": "خطا در دریافت کاربران",
+    "errorFetchDetails": "خطا در دریافت جزئیات کاربر",
+    "errorResetPass": "خطا در ریست پسورد"
   }
 }
