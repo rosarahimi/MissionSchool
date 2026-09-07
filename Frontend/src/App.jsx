@@ -11,6 +11,7 @@ const Mission = lazy(() => import("./pages/Mission/Mission").then(m => ({ defaul
 const Dashboard = lazy(() => import("./pages/Dashboard/Dashboard").then(m => ({ default: m.Dashboard })));
 const AdminDashboard = lazy(() => import("./pages/AdminDashboard/AdminDashboard").then(m => ({ default: m.AdminDashboard })));
 const BadgeHall = lazy(() => import("./pages/BadgeHall/BadgeHall").then(m => ({ default: m.BadgeHall })));
+const Landing = lazy(() => import("./pages/Landing/Landing").then(m => ({ default: m.Landing })));
 
 function AppContent() {
   const { i18n } = useTranslation();
@@ -44,7 +45,7 @@ function AppContent() {
       }
       setToken(res.token);
       setUser(res.user);
-      navigate("/");
+      // Navigation will be handled by route redirect based on token presence.
     } catch (err) {
       throw new Error(err.message || "Login failed");
     }
@@ -56,17 +57,19 @@ function AppContent() {
       if (res.token && res.user) {
         setToken(res.token);
         setUser(res.user);
-        navigate("/");
+        // Navigation will be handled by route redirect based on token presence.
       }
     } catch (err) {
       throw new Error(err.message || "Registration failed");
     }
   };
 
-  const handleLogout = () => {
-    logout();
-    navigate("/auth");
-  };
+  // Token redirect effect to avoid blank screen after login/register
+  useEffect(() => {
+    if (token && (window.location.pathname.startsWith('/auth') || window.location.pathname === '/')) {
+      navigate('/');
+    }
+  }, [token, navigate]);
 
   // -- Navigation Handlers --
   const startMission = (subjectId, lessonId) => {
@@ -89,7 +92,7 @@ function AppContent() {
           {/* Protected Routes */}
           <Route 
             path="/" 
-            element={token ? <Home onStart={startMission} onHall={(tab) => navigate(`/profile?tab=${tab}`)} onLogout={handleLogout} onDashboard={() => navigate("/curriculum")} onAdmin={() => navigate("/admin")} /> : <Navigate to="/auth" />} 
+            element={token ? <Home onStart={startMission} onHall={(tab) => navigate(`/profile?tab=${tab}`)} onLogout={handleLogout} onDashboard={() => navigate("/curriculum")} onAdmin={() => navigate("/admin")} /> : <Landing />} 
           />
           
           <Route 

@@ -35,7 +35,7 @@ export function LiveClock() {
   });
 
   return (
-    <div className={`absolute top-6 z-10 pointer-events-none end-6 text-end transition-opacity duration-300`} style={{ color: 'rgba(255,255,255,0.7)' }}>
+    <div className={`flex flex-col items-end text-end transition-opacity duration-300`} style={{ color: 'rgba(255,255,255,0.7)' }}>
       <div className="text-3xl font-black text-white mb-1.5 tracking-wider">
         {timeStr}
       </div>
