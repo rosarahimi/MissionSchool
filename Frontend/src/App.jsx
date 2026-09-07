@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "r
 import { useTranslation } from "react-i18next";
 import { useStore } from "./store/useStore";
 import * as api from "./api";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 // Lazy load components for performance
 const Auth = lazy(() => import("./pages/Auth/Auth").then(m => ({ default: m.AuthScreen })));
@@ -81,7 +82,8 @@ function AppContent() {
 
   return (
     <div className={`min-h-screen bg-slate-950 text-white font-vazir ${isRTL ? "rtl text-right" : "ltr text-left"}`} dir={isRTL ? 'rtl' : 'ltr'}>
-      <Suspense fallback={<div className="min-h-screen flex items-center justify-center">🚀 Loading...</div>}>
+      <ErrorBoundary>
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">🚀 Loading...</div>}>
         <Routes>
           {/* Public Routes */}
           <Route 
