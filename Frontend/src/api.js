@@ -67,6 +67,10 @@ export const updateProgress = async (token, data) => {
   return res.json();
 };
 
+export const reportScore = async (token, data) => {
+  return updateProgress(token, data);
+};
+
 export const curriculumLessonDetails = async (token, lessonId) => {
   const res = await fetch(`${API_URL}/curriculum/lessons/${lessonId}`, {
     headers: { 'Authorization': `Bearer ${token}` },

@@ -33,7 +33,7 @@ export function Mission({
 }) {
   const { t, i18n } = useTranslation();
   const isRTL = i18n.language === 'fa';
-  const { token, user } = useStore();
+  const { token, user, setUser } = useStore();
   
   const subject = SUBJECTS.find(s => s.id === subjectId) || SUBJECTS[4];
   const c = COLORS[subjectId] || COLORS.persian;
@@ -48,6 +48,7 @@ export function Mission({
   const [feedback, setFeedback] = useState(null); // { correct: bool }
   const [timeLeft, setTimeLeft] = useState(30);
   const [showStageComplete, setShowStageComplete] = useState(false);
+  const [detailedResults, setDetailedResults] = useState([]);
 
   // -- Mission Specific State --
   const [selectedWords, setSelectedWords] = useState([]);
@@ -143,57 +144,97 @@ export function Mission({
     speakNext(0);
   }, [ttsLang, ttsSettings, ttsVoices]);
 
-  const handleAnswer = async (value, isTimeout = false) => {
+  const handleAnswer = async (value, isTimeout = false, selectedOptionIndex = null) => {
     if (feedback) return;
 
     let correct = false;
-    if (!isTimeout) {
+    let expectedAnswerStr = '';
+    let userAnswerStr = isTimeout ? (isRTL ? 'زمان تمام شد' : 'Time out') : String(value || '');
+
+    if (!isTimeout && currentMission) {
       // DB types: 'mcq', 'fill', 'order'
       const answer = currentMission.answer ?? currentMission.a;
+
       if (currentMission.type === 'mcq' || currentMission.type === 'multiple_choice') {
-        correct = String(value) === String(answer);
+        const isNumericIndex = typeof answer === 'number' || (!isNaN(Number(answer)) && String(answer).trim() !== '');
+        if (isNumericIndex) {
+          const targetIdx = Number(answer);
+          expectedAnswerStr = currentMission.options?.[targetIdx] || String(targetIdx);
+          correct = (selectedOptionIndex !== null && selectedOptionIndex === targetIdx) || 
+                    (String(value).trim() === String(currentMission.options?.[targetIdx]).trim());
+        } else {
+          expectedAnswerStr = String(answer || '');
+          correct = String(value).trim().toLowerCase() === String(answer).trim().toLowerCase();
+        }
       } else if (currentMission.type === 'order' || currentMission.type === 'ordering') {
         const joined = selectedWords.join(' ').trim();
-        const target = Array.isArray(answer) ? answer.join(' ').trim() : String(answer).trim();
-        correct = joined === target;
+        userAnswerStr = joined;
+        const target = Array.isArray(answer) ? answer.join(' ').trim() : String(answer || '').trim();
+        expectedAnswerStr = target;
+        correct = joined.replace(/[\s\u200c]+/g, ' ') === target.replace(/[\s\u200c]+/g, ' ');
       } else if (currentMission.type === 'fill' || currentMission.type === 'fill_in_the_blank') {
-        correct = String(value).trim().toLowerCase() === String(answer).trim().toLowerCase();
+        expectedAnswerStr = String(currentMission.blank || answer || '');
+        correct = String(value).trim().toLowerCase() === expectedAnswerStr.trim().toLowerCase();
       }
     }
 
     setFeedback({ correct });
+
+    const resultRecord = {
+      question: currentMission?.q || '',
+      correct,
+      userAnswer: userAnswerStr,
+      correctAnswer: expectedAnswerStr,
+    };
+    const nextResults = [...detailedResults, resultRecord];
+    setDetailedResults(nextResults);
     
+    let nextScore = score;
+    let nextStars = stars;
     if (correct) {
-      setScore(s => s + 10);
+      nextScore = score + 10;
+      setScore(nextScore);
       const earnedStars = timeLeft > 20 ? 3 : timeLeft > 10 ? 2 : 1;
-      setStars(s => s + earnedStars);
+      nextStars = stars + earnedStars;
+      setStars(nextStars);
     }
 
     // Auto-advance after delay
     setTimeout(() => {
-      nextMission();
+      nextMission(nextResults, nextScore, nextStars);
     }, 1500);
   };
 
-  const nextMission = () => {
+  const nextMission = (currentResults = detailedResults, currentScore = score, currentStars = stars) => {
     if (missionIdx + 1 >= totalMissions) {
-      finishGame();
+      finishGame(currentResults, currentScore, currentStars);
     } else {
       setMissionIdx(prev => prev + 1);
     }
   };
 
-  const finishGame = async () => {
+  const finishGame = async (finalResults = detailedResults, finalScore = score, finalStars = stars) => {
     setIsFinished(true);
-    // Report score to API
     if (token && lessonId) {
       try {
+        const earnedBadge = (finalScore >= 70 || finalStars >= 6) ? 'lesson_done' : null;
         await api.reportScore(token, {
           lessonId,
-          score,
-          stars,
-          subject: subjectId
+          score: finalScore,
+          stars: finalStars,
+          subject: subjectId,
+          badge: earnedBadge,
+          detailedResults: finalResults,
         });
+
+        // Mark lesson completed in backend
+        await api.curriculumLessonProgress(token, lessonId, 'completed').catch(() => {});
+
+        // Refresh user profile in Zustand store so stars and badges update immediately
+        const freshProfile = await api.getProfile(token);
+        if (freshProfile && !freshProfile.message && setUser) {
+          setUser(freshProfile);
+        }
       } catch (err) {
         console.error("Failed to report score:", err);
       }
@@ -285,10 +326,15 @@ export function Mission({
                 {currentMission.options.map((opt, i) => (
                   <button
                     key={i}
-                    onClick={() => handleAnswer(opt)}
-                    className="group bg-white/5 hover:bg-white/10 border border-white/10 hover:border-brand-primary/50 p-6 rounded-3xl transition-all text-lg font-bold relative overflow-hidden"
+                    onClick={() => handleAnswer(opt, false, i)}
+                    className="group bg-white/5 hover:bg-white/10 border border-white/10 hover:border-brand-primary/50 p-6 rounded-3xl transition-all text-lg font-bold relative overflow-hidden text-start cursor-pointer"
                   >
-                    <div className="relative z-10">{opt}</div>
+                    <div className="relative z-10 flex items-center gap-3">
+                      <span className="w-8 h-8 rounded-xl bg-white/10 flex items-center justify-center text-xs font-black text-brand-primary">
+                        {i + 1}
+                      </span>
+                      <span>{opt}</span>
+                    </div>
                     <div className="absolute inset-0 bg-brand-primary/0 group-hover:bg-brand-primary/5 transition-colors" />
                   </button>
                 ))}
@@ -307,7 +353,7 @@ export function Mission({
                         setSelectedWords(s => s.filter((_, idx) => idx !== i));
                         setDragWords(d => [...d, w]);
                       }}
-                      className="bg-brand-primary text-slate-950 px-4 py-2 rounded-xl font-black shadow-lg shadow-brand-primary/20"
+                      className="bg-brand-primary text-slate-950 px-4 py-2 rounded-xl font-black shadow-lg shadow-brand-primary/20 cursor-pointer"
                     >
                       {w}
                     </motion.button>
@@ -324,7 +370,7 @@ export function Mission({
                         setSelectedWords(s => [...s, w]);
                         setDragWords(d => d.filter((_, idx) => idx !== i));
                       }}
-                      className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-bold transition-all border border-white/5"
+                      className="bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl font-bold transition-all border border-white/5 cursor-pointer"
                     >
                       {w}
                     </motion.button>
@@ -332,9 +378,9 @@ export function Mission({
                 </div>
 
                 <button 
-                  onClick={() => handleAnswer()} 
+                  onClick={() => handleAnswer(selectedWords.join(' '), false)} 
                   disabled={selectedWords.length === 0}
-                  className="w-full bg-brand-primary text-slate-950 py-4 rounded-3xl font-black text-xl shadow-xl shadow-brand-primary/20 disabled:opacity-30 transition-all"
+                  className="w-full bg-brand-primary text-slate-950 py-4 rounded-3xl font-black text-xl shadow-xl shadow-brand-primary/20 disabled:opacity-30 transition-all cursor-pointer"
                 >
                   {t('game.checkBtn')}
                 </button>

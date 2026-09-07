@@ -20,6 +20,7 @@ import {
 import { useStore } from "../../store/useStore";
 import { SUBJECTS } from "../../constants/game";
 import { LiveClock } from "../../components/LiveClock";
+import { LanguageSwitcher } from "../../components/LanguageSwitcher";
 
 import * as api from "../../api";
 
@@ -125,6 +126,7 @@ export function Home({ onStart, onHall, onLogout, onDashboard, onAdmin }) {
           )}
         </div>
         <div className="flex items-center gap-3">
+          <LanguageSwitcher />
           <LiveClock />
         </div>
       </div>

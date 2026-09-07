@@ -1,4 +1,4 @@
-import { useEffect, Suspense, lazy } from "react";
+import { useState, useEffect, Suspense, lazy } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useStore } from "./store/useStore";
@@ -74,6 +74,8 @@ function AppContent() {
     navigate(`/mission?lessonId=${lessonId || ''}`);
   };
 
+  const [authMode, setAuthMode] = useState('login');
+
   return (
     <div className={`min-h-screen bg-slate-950 text-white font-vazir ${isRTL ? "rtl text-right" : "ltr text-left"}`} dir={isRTL ? 'rtl' : 'ltr'}>
       <Suspense fallback={<div className="min-h-screen flex items-center justify-center">🚀 Loading...</div>}>
@@ -81,7 +83,7 @@ function AppContent() {
           {/* Public Routes */}
           <Route 
             path="/auth" 
-            element={!token ? <Auth mode="login" setMode={() => {}} onLogin={handleLogin} onRegister={handleRegister} /> : <Navigate to="/" />} 
+            element={!token ? <Auth mode={authMode} setMode={setAuthMode} onLogin={handleLogin} onRegister={handleRegister} /> : <Navigate to="/" />} 
           />
 
           {/* Protected Routes */}
