@@ -127,7 +127,7 @@ function AppContent() {
           {/* Catch-all */}
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
-      </Suspense>
+      </Suspense></ErrorBoundary>
     </div>
   );
 }
