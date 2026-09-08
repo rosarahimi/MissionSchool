@@ -454,6 +454,7 @@ export function Mission({
     </div>
   );
 }
+export default Mission;
 
 function Summary({ subject, score, stars, onHome, totalMissions }) {
   const { t } = useTranslation();

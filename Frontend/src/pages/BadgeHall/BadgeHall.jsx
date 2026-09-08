@@ -280,6 +280,7 @@ export function BadgeHall({ onBack, onLogout }) {
     </div>
   );
 }
+export default BadgeHall;
 
 function TabButton({ active, onClick, icon, label }) {
   return (

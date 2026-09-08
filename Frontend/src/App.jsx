@@ -5,14 +5,14 @@ import { useStore } from "./store/useStore";
 import * as api from "./api";
 import ErrorBoundary from "./components/ErrorBoundary";
 
-// Lazy load components for performance
-const Auth = lazy(() => import("./pages/Auth/Auth").then(m => ({ default: m.AuthScreen })));
-const Home = lazy(() => import("./pages/Home/Home").then(m => ({ default: m.Home })));
-const Mission = lazy(() => import("./pages/Mission/Mission").then(m => ({ default: m.Mission })));
-const Dashboard = lazy(() => import("./pages/Dashboard/Dashboard").then(m => ({ default: m.Dashboard })));
-const AdminDashboard = lazy(() => import("./pages/AdminDashboard/AdminDashboard").then(m => ({ default: m.AdminDashboard })));
-const BadgeHall = lazy(() => import("./pages/BadgeHall/BadgeHall").then(m => ({ default: m.BadgeHall })));
-const Landing = lazy(() => import("./pages/Landing/Landing").then(m => ({ default: m.Landing })));
+// Lazy load components for performance (using default exports)
+const Auth = lazy(() => import("./pages/Auth/Auth"));
+const Home = lazy(() => import("./pages/Home/Home"));
+const Mission = lazy(() => import("./pages/Mission/Mission"));
+const Dashboard = lazy(() => import("./pages/Dashboard/Dashboard"));
+const AdminDashboard = lazy(() => import("./pages/AdminDashboard/AdminDashboard"));
+const BadgeHall = lazy(() => import("./pages/BadgeHall/BadgeHall"));
+const Landing = lazy(() => import("./pages/Landing/Landing"));
 
 function AppContent() {
   const { i18n } = useTranslation();
@@ -77,7 +77,10 @@ function AppContent() {
     setCurrentSubject(subjectId);
     navigate(`/mission?lessonId=${lessonId || ''}`);
   };
-
+  const handleLogout = () => {
+    logout();
+    navigate('/auth');
+  };
   const [authMode, setAuthMode] = useState('login');
 
   return (

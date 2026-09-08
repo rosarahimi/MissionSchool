@@ -308,7 +308,7 @@ export function AdminDashboard({ onBack }) {
     </div>
   );
 }
-
+export default AdminDashboard;
 function InfoCard({ icon, label, value, color = "text-white" }) {
   return (
     <div className="p-3 bg-black/20 border border-white/5 rounded-xl">

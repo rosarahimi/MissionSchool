@@ -453,3 +453,4 @@ export function AuthScreen({ mode = 'login', setMode = () => {}, onLogin, onRegi
     </div>
   );
 }
+export default AuthScreen;

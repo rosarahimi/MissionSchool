@@ -299,7 +299,7 @@ export function Home({ onStart, onHall, onLogout, onDashboard, onAdmin }) {
     </div>
   );
 }
-
+export default Home;
 function StatItem({ icon, value }) {
   return (
     <div className="flex items-center gap-1.5">
